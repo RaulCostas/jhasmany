@@ -36,7 +36,7 @@ const ContactosList: React.FC = () => {
             content: 'Activo: Contacto visible en el sistema. Inactivo: Contacto dado de baja (no visible en búsquedas normales).'
         }];
 
-    const formatCelular = (celular: string) => {
+    const formatCelular = (celular?: string) => {
         if (!celular) return '-';
         let clean = celular.trim();
         if (!clean.startsWith('+')) {
