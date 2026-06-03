@@ -137,7 +137,7 @@ const Home: React.FC = () => {
 
 
             {/* Recordatorios Section */}
-            {recordatorios.length > 0 && (
+            {hasAccess('dashboard_recordatorios') && recordatorios.length > 0 && (
                 <div className="mb-8 bg-purple-50 dark:bg-purple-900/20 border-l-4 border-purple-500 p-6 rounded-r-lg shadow-sm">
                     <h2 className="text-xl font-bold text-purple-700 dark:text-purple-300 mb-4 flex items-center gap-2">
                         <span>🔔</span> Recordatorios Activos
@@ -188,7 +188,7 @@ const Home: React.FC = () => {
             )}
 
             {/* Tratamientos Pendientes Section */}
-            {tratamientosPendientes.length > 0 && (
+            {hasAccess('dashboard_seguimiento') && tratamientosPendientes.length > 0 && (
                 <div className="mb-8 bg-indigo-50 dark:bg-indigo-900/20 border-l-4 border-indigo-500 p-6 rounded-r-lg shadow-sm">
                     <h2 className="text-xl font-bold text-indigo-700 dark:text-indigo-300 mb-4 flex items-center gap-2">
                         <span>📋</span> Seguimiento Clínico

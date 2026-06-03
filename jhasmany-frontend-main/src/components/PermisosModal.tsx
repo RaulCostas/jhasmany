@@ -57,71 +57,38 @@ const PermisosModal: React.FC<PermisosModalProps> = ({ user, isOpen, onClose, on
             title: 'Módulos Principales',
             items: [
                 { id: 'agenda', label: 'Agenda' },
-                
-                { id: 'pacientes', label: 'Pacientes Particulares (Módulo)' },
+                { id: 'pacientes', label: 'Pacientes (Módulo)' },
                 { id: 'pacientes-registro', label: ' - Lista de Pacientes' },
                 { id: 'recetario', label: ' - Recetario' },
-
-                { id: 'pacientes-seguro', label: 'Pacientes Seguro (Módulo)' },
-                { id: 'pacientes-seguro-registro', label: ' - Lista de Pacientes' },
-                { id: 'planillas-proformas-seguro', label: ' - Planillas y Proformas' },
-                { id: 'arancel-seguro', label: ' - Aranceles (Seguro)' },
-
-
                 { id: 'doctores', label: 'Doctores (Módulo)' },
-                { id: 'doctores-registro', label: ' - Registro de Doctores' },
-                { id: 'pagos-doctores', label: ' - Pagos a Doctores' },
-
-                { id: 'laboratorios', label: 'Laboratorios (Módulo)' },
-                { id: 'laboratorios-registro', label: ' - Registro de Laboratorios' },
-                { id: 'trabajos-laboratorios', label: ' - Trabajos Lab.' },
-                { id: 'pagos-laboratorios', label: ' - Pagos a Laboratorios' },
-                { id: 'precios-laboratorios', label: ' - Precios Lab.' },
-                { id: 'cubetas', label: ' - Cubetas' },
-
-                { id: 'proveedores', label: 'Proveedores (Módulo)' },
-                { id: 'proveedores-registro', label: ' - Registro de Proveedores' },
-                { id: 'pedidos', label: ' - Pedidos' },
-                { id: 'pagos-pedidos', label: ' - Pagar Pedidos' },
-
-
-
-                { id: 'personal', label: 'Personal (Módulo)' },
-                { id: 'personal-registro', label: ' - Registro de Personal' },
-                { id: 'vacaciones', label: ' - Vacaciones' },
-                { id: 'calificacion', label: ' - Calificación' },
-
-                { id: 'inventario', label: 'Inventario' },
+                { id: 'doctores-registro', label: ' - Lista de Doctores' },
+                { id: 'especialidad', label: ' - Especialidades' },
                 { id: 'egresos', label: 'Egresos Diarios' },
                 { id: 'gastos', label: 'Gastos Fijos' },
-
-
                 { id: 'hoja-diaria', label: 'Hoja Diaria' },
                 { id: 'utilidades', label: 'Utilidades' },
-
                 { id: 'estadisticas', label: 'Estadísticas (Módulo)' },
                 { id: 'estadisticas-pacientes', label: ' - Estadísticas Pacientes' },
                 { id: 'estadisticas-utilidades', label: ' - Estadísticas Utilidades' },
-                { id: 'estadisticas-productos', label: ' - Estadísticas Productos' },
-
+                { id: 'recordatorio', label: 'Recordatorios' },
+                { id: 'contactos', label: 'Contactos' },
                 { id: 'configuracion', label: 'Configuración (Módulo)' },
                 { id: 'usuarios', label: ' - Usuarios' },
                 { id: 'cambiar-password', label: ' - Cambiar Contraseña' },
                 { id: 'config-chatbot', label: ' - Chatbot (WhatsApp)' },
                 { id: 'config-backup', label: ' - Backup (Base de Datos)' },
                 { id: 'config-comision', label: ' - Comisión Tarjeta' },
-                { id: 'config-especialidad', label: ' - Especialidades' },
                 { id: 'config-forma-pago', label: ' - Formas de Pago' },
             ]
         },
         {
             title: 'Mensajes de Inicio (Dashboard)',
             items: [
-                { id: 'dashboard_cumpleanos', label: 'Cumpleaños (Pacientes y Personal)' },
-                { id: 'dashboard_pacientes_no_registrados', label: 'Pacientes No Registrados (Seguimiento Clínico)' },
-                { id: 'dashboard_trabajos_pendientes', label: 'Trabajos Terminados (Laboratorios)' },
-                { id: 'dashboard_stock_minimo', label: 'Alerta de Stock Bajo' },
-                { id: 'dashboard_gastos_vencidos', label: 'Gastos Fijos' },
+                { id: 'dashboard_cumpleanos', label: 'Cumpleaños de Pacientes Hoy' },
+                { id: 'dashboard_gastos_vencidos', label: 'Gastos Fijos por Pagar Hoy' },
+                { id: 'dashboard_citas_hoy', label: 'Citas Hoy (Estadística Rápida)' },
+                { id: 'dashboard_recordatorios', label: 'Recordatorios Activos' },
+                { id: 'dashboard_seguimiento', label: 'Seguimiento Clínico (Tratamientos)' },
             ]
         }
     ];
