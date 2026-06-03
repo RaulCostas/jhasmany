@@ -15,6 +15,8 @@ import { Server, Socket } from 'socket.io';
             'https://jhasmany-frontend.onrender.com',
             'https://jhasmany.com',
             'https://www.jhasmany.com',
+            'https://jeriko1902.com',
+            'https://www.jeriko1902.com',
             'http://localhost:5173',
             'http://localhost:3001'
         ],
