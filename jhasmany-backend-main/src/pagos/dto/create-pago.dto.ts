@@ -1,0 +1,54 @@
+import { IsNotEmpty, IsNumber, IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
+
+export class CreatePagoDto {
+    @IsNotEmpty()
+    @IsNumber()
+    pacienteId: number;
+
+    @IsNotEmpty()
+    @IsDateString()
+    fecha: string;
+
+
+    @IsNotEmpty()
+    @IsNumber()
+    monto: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    tc: number;
+
+    @IsOptional()
+    @IsNumber()
+    monto_comision?: number;
+
+    @IsNotEmpty()
+    @IsEnum(['Soles', 'Dólares'])
+    moneda: string;
+
+    @IsOptional()
+    @IsString()
+    recibo?: string;
+
+    @IsOptional()
+    @IsString()
+    factura?: string;
+
+
+
+    @IsOptional()
+    @IsNumber()
+    comisionTarjetaId?: number;
+
+    @IsOptional()
+    @IsNumber()
+    formaPagoId?: number;
+
+    @IsOptional()
+    @IsString()
+    observaciones?: string;
+
+    @IsOptional()
+    @IsNumber()
+    usuarioId?: number;
+}

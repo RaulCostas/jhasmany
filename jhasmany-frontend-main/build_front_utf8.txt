@@ -1,0 +1,198 @@
+﻿
+> frontend@0.0.0 build
+> tsc -b && vite build
+
+src/components/AgendaForm.tsx(45,10): error TS1136: Property assignment expected.
+src/components/AgendaForm.tsx(46,5): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(46,6): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(121,18): error TS1136: Property assignment expected.
+src/components/AgendaForm.tsx(123,27): error TS1005: ')' expected.
+src/components/AgendaForm.tsx(124,25): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(125,27): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(126,28): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(127,34): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(128,13): error TS1005: ',' expected.
+src/components/AgendaForm.tsx(128,14): error TS1128: Declaration or statement expected.
+src/components/AgendaForm.tsx(128,15): error TS1005: ';' expected.
+src/components/AgendaForm.tsx(130,9): error TS1128: Declaration or statement expected.
+src/components/AgendaForm.tsx(131,5): error TS1128: Declaration or statement expected.
+src/components/AgendaForm.tsx(131,6): error TS1128: Declaration or statement expected.
+src/components/AgendaForm.tsx(131,96): error TS1005: ';' expected.
+src/components/AgendaForm.tsx(823,1): error TS1128: Declaration or statement expected.
+src/components/ArancelForm.tsx(83,22): error TS1136: Property assignment expected.
+src/components/ArancelForm.tsx(84,17): error TS1005: ',' expected.
+src/components/ArancelForm.tsx(84,18): error TS1128: Declaration or statement expected.
+src/components/ArancelForm.tsx(86,9): error TS1128: Declaration or statement expected.
+src/components/ArancelForm.tsx(87,5): error TS1128: Declaration or statement expected.
+src/components/ArancelForm.tsx(87,6): error TS1128: Declaration or statement expected.
+src/components/ArancelForm.tsx(87,32): error TS1005: ';' expected.
+src/components/ArancelForm.tsx(382,1): error TS1128: Declaration or statement expected.
+src/components/ArancelList.tsx(107,17): error TS1128: Declaration or statement expected.
+src/components/ArancelList.tsx(108,13): error TS1128: Declaration or statement expected.
+src/components/ArancelList.tsx(114,9): error TS1128: Declaration or statement expected.
+src/components/ArancelList.tsx(114,11): error TS1005: 'try' expected.
+src/components/ArancelList.tsx(118,5): error TS1128: Declaration or statement expected.
+src/components/ArancelList.tsx(330,38): error TS1109: Expression expected.
+src/components/ArancelList.tsx(790,1): error TS1128: Declaration or statement expected.
+src/components/CalificacionForm.tsx(83,17): error TS1128: Declaration or statement expected.
+src/components/CalificacionForm.tsx(84,13): error TS1128: Declaration or statement expected.
+src/components/CalificacionForm.tsx(88,9): error TS1128: Declaration or statement expected.
+src/components/CalificacionForm.tsx(88,11): error TS1005: 'try' expected.
+src/components/CalificacionForm.tsx(91,5): error TS1128: Declaration or statement expected.
+src/components/CalificacionForm.tsx(407,1): error TS1128: Declaration or statement expected.
+src/components/CalificacionList.tsx(72,17): error TS1128: Declaration or statement expected.
+src/components/CalificacionList.tsx(73,13): error TS1128: Declaration or statement expected.
+src/components/CalificacionList.tsx(79,9): error TS1128: Declaration or statement expected.
+src/components/CalificacionList.tsx(79,11): error TS1005: 'try' expected.
+src/components/CalificacionList.tsx(87,5): error TS1128: Declaration or statement expected.
+src/components/CalificacionList.tsx(321,1): error TS1128: Declaration or statement expected.
+src/components/CubetasList.tsx(303,17): error TS1128: Declaration or statement expected.
+src/components/CubetasList.tsx(304,13): error TS1128: Declaration or statement expected.
+src/components/CubetasList.tsx(482,9): error TS1128: Declaration or statement expected.
+src/components/CubetasList.tsx(482,11): error TS1005: 'try' expected.
+src/components/CubetasList.tsx(486,5): error TS1128: Declaration or statement expected.
+src/components/CubetasList.tsx(695,1): error TS1128: Declaration or statement expected.
+src/components/DoctorList.tsx(85,17): error TS1128: Declaration or statement expected.
+src/components/DoctorList.tsx(86,13): error TS1128: Declaration or statement expected.
+src/components/DoctorList.tsx(92,9): error TS1128: Declaration or statement expected.
+src/components/DoctorList.tsx(92,11): error TS1005: 'try' expected.
+src/components/DoctorList.tsx(96,5): error TS1128: Declaration or statement expected.
+src/components/DoctorList.tsx(105,38): error TS1109: Expression expected.
+src/components/DoctorList.tsx(704,1): error TS1128: Declaration or statement expected.
+src/components/EgresoForm.tsx(97,22): error TS1136: Property assignment expected.
+src/components/EgresoForm.tsx(98,17): error TS1005: ',' expected.
+src/components/EgresoForm.tsx(98,18): error TS1128: Declaration or statement expected.
+src/components/EgresoForm.tsx(100,9): error TS1128: Declaration or statement expected.
+src/components/EgresoForm.tsx(101,5): error TS1128: Declaration or statement expected.
+src/components/EgresoForm.tsx(101,6): error TS1128: Declaration or statement expected.
+src/components/EgresoForm.tsx(101,20): error TS1005: ';' expected.
+src/components/EgresoForm.tsx(362,1): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(108,17): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(109,13): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(118,9): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(118,11): error TS1005: 'try' expected.
+src/components/EgresoList.tsx(122,5): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(210,17): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(211,13): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(292,9): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(292,11): error TS1005: 'try' expected.
+src/components/EgresoList.tsx(296,5): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(313,17): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(314,13): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(560,9): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(560,11): error TS1005: 'try' expected.
+src/components/EgresoList.tsx(564,5): error TS1128: Declaration or statement expected.
+src/components/EgresoList.tsx(979,1): error TS1128: Declaration or statement expected.
+src/components/EstadisticasDoctores.tsx(54,61): error TS1136: Property assignment expected.
+src/components/EstadisticasDoctores.tsx(55,13): error TS1005: ',' expected.
+src/components/EstadisticasDoctores.tsx(55,14): error TS1472: 'catch' or 'finally' expected.
+src/components/EstadisticasDoctores.tsx(57,11): error TS1005: ',' expected.
+src/components/EstadisticasDoctores.tsx(213,1): error TS1128: Declaration or statement expected.
+src/components/EstadisticasModal.tsx(38,17): error TS1128: Declaration or statement expected.
+src/components/EstadisticasModal.tsx(39,13): error TS1128: Declaration or statement expected.
+src/components/EstadisticasModal.tsx(42,9): error TS1128: Declaration or statement expected.
+src/components/EstadisticasModal.tsx(42,11): error TS1005: 'try' expected.
+src/components/EstadisticasModal.tsx(45,5): error TS1128: Declaration or statement expected.
+src/components/EstadisticasModal.tsx(268,1): error TS1128: Declaration or statement expected.
+src/components/HojaDiaria.tsx(434,74): error TS1136: Property assignment expected.
+src/components/InventarioForm.tsx(29,10): error TS1136: Property assignment expected.
+src/components/InventarioForm.tsx(30,5): error TS1005: ',' expected.
+src/components/InventarioForm.tsx(30,6): error TS1005: ',' expected.
+src/components/InventarioForm.tsx(86,22): error TS1136: Property assignment expected.
+src/components/InventarioForm.tsx(87,17): error TS1005: ',' expected.
+src/components/InventarioForm.tsx(87,18): error TS1128: Declaration or statement expected.
+src/components/InventarioForm.tsx(88,13): error TS1128: Declaration or statement expected.
+src/components/InventarioForm.tsx(89,9): error TS1128: Declaration or statement expected.
+src/components/InventarioForm.tsx(90,5): error TS1128: Declaration or statement expected.
+src/components/InventarioForm.tsx(90,6): error TS1128: Declaration or statement expected.
+src/components/InventarioForm.tsx(90,41): error TS1005: ';' expected.
+src/components/InventarioForm.tsx(445,1): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(97,17): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(98,13): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(113,9): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(113,11): error TS1005: 'try' expected.
+src/components/InventarioList.tsx(119,5): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(422,17): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(423,13): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(566,9): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(566,11): error TS1005: 'try' expected.
+src/components/InventarioList.tsx(570,5): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(781,17): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(782,13): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(813,9): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(813,11): error TS1005: 'try' expected.
+src/components/InventarioList.tsx(817,5): error TS1128: Declaration or statement expected.
+src/components/InventarioList.tsx(833,38): error TS1109: Expression expected.
+src/components/InventarioList.tsx(849,38): error TS1109: Expression expected.
+src/components/InventarioList.tsx(862,38): error TS1109: Expression expected.
+src/components/InventarioList.tsx(1279,1): error TS1128: Declaration or statement expected.
+src/components/LaboratorioList.tsx(88,17): error TS1128: Declaration or statement expected.
+src/components/LaboratorioList.tsx(89,13): error TS1128: Declaration or statement expected.
+src/components/LaboratorioList.tsx(95,9): error TS1128: Declaration or statement expected.
+src/components/LaboratorioList.tsx(95,11): error TS1005: 'try' expected.
+src/components/LaboratorioList.tsx(99,5): error TS1128: Declaration or statement expected.
+src/components/LaboratorioList.tsx(108,38): error TS1109: Expression expected.
+src/components/LaboratorioList.tsx(672,1): error TS1128: Declaration or statement expected.
+src/components/PagosDoctoresList.tsx(78,17): error TS1128: Declaration or statement expected.
+src/components/PagosDoctoresList.tsx(79,13): error TS1128: Declaration or statement expected.
+src/components/PagosDoctoresList.tsx(86,9): error TS1128: Declaration or statement expected.
+src/components/PagosDoctoresList.tsx(86,11): error TS1005: 'try' expected.
+src/components/PagosDoctoresList.tsx(90,5): error TS1128: Declaration or statement expected.
+src/components/PagosDoctoresList.tsx(909,1): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(119,22): error TS1136: Property assignment expected.
+src/components/PersonalForm.tsx(120,17): error TS1005: ',' expected.
+src/components/PersonalForm.tsx(120,18): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(124,9): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(125,5): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(125,6): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(125,20): error TS1005: ';' expected.
+src/components/PersonalForm.tsx(162,18): error TS1136: Property assignment expected.
+src/components/PersonalForm.tsx(163,14): error TS1472: 'catch' or 'finally' expected.
+src/components/PersonalForm.tsx(192,11): error TS1005: ',' expected.
+src/components/PersonalForm.tsx(200,5): error TS1128: Declaration or statement expected.
+src/components/PersonalForm.tsx(544,1): error TS1128: Declaration or statement expected.
+src/components/PersonalList.tsx(78,17): error TS1128: Declaration or statement expected.
+src/components/PersonalList.tsx(79,13): error TS1128: Declaration or statement expected.
+src/components/PersonalList.tsx(85,9): error TS1128: Declaration or statement expected.
+src/components/PersonalList.tsx(85,11): error TS1005: 'try' expected.
+src/components/PersonalList.tsx(89,5): error TS1128: Declaration or statement expected.
+src/components/PersonalList.tsx(166,38): error TS1109: Expression expected.
+src/components/PersonalList.tsx(723,1): error TS1128: Declaration or statement expected.
+src/components/RecetarioForm.tsx(44,10): error TS1136: Property assignment expected.
+src/components/RecetarioForm.tsx(45,5): error TS1005: ',' expected.
+src/components/RecetarioForm.tsx(45,6): error TS1005: ',' expected.
+src/components/RecetarioForm.tsx(106,18): error TS1136: Property assignment expected.
+src/components/RecetarioForm.tsx(450,1): error TS1128: Declaration or statement expected.
+src/components/TrabajosLaboratoriosForm.tsx(42,10): error TS1136: Property assignment expected.
+src/components/TrabajosLaboratoriosForm.tsx(43,17): error TS1005: ',' expected.
+src/components/TrabajosLaboratoriosForm.tsx(44,26): error TS1005: ',' expected.
+src/components/TrabajosLaboratoriosForm.tsx(45,5): error TS1135: Argument expression expected.
+src/components/TrabajosLaboratoriosForm.tsx(45,6): error TS1005: ',' expected.
+src/components/TrabajosLaboratoriosForm.tsx(79,46): error TS1136: Property assignment expected.
+src/components/TrabajosLaboratoriosForm.tsx(79,51): error TS1005: ')' expected.
+src/components/TrabajosLaboratoriosForm.tsx(79,52): error TS1128: Declaration or statement expected.
+src/components/TrabajosLaboratoriosForm.tsx(79,53): error TS1005: ';' expected.
+src/components/TrabajosLaboratoriosForm.tsx(80,9): error TS1128: Declaration or statement expected.
+src/components/TrabajosLaboratoriosForm.tsx(81,5): error TS1128: Declaration or statement expected.
+src/components/TrabajosLaboratoriosForm.tsx(81,6): error TS1128: Declaration or statement expected.
+src/components/TrabajosLaboratoriosForm.tsx(81,40): error TS1005: ';' expected.
+src/components/TrabajosLaboratoriosForm.tsx(173,34): error TS1136: Property assignment expected.
+src/components/TrabajosLaboratoriosForm.tsx(626,1): error TS1128: Declaration or statement expected.
+src/components/VacacionesForm.tsx(92,17): error TS1128: Declaration or statement expected.
+src/components/VacacionesForm.tsx(93,13): error TS1128: Declaration or statement expected.
+src/components/VacacionesForm.tsx(97,9): error TS1128: Declaration or statement expected.
+src/components/VacacionesForm.tsx(97,11): error TS1005: 'try' expected.
+src/components/VacacionesForm.tsx(100,5): error TS1128: Declaration or statement expected.
+src/components/VacacionesForm.tsx(465,1): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(76,17): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(77,13): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(84,9): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(84,11): error TS1005: 'try' expected.
+src/components/VacacionesList.tsx(87,5): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(106,17): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(107,13): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(139,9): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(139,11): error TS1005: 'try' expected.
+src/components/VacacionesList.tsx(144,5): error TS1128: Declaration or statement expected.
+src/components/VacacionesList.tsx(189,38): error TS1109: Expression expected.
+src/components/VacacionesList.tsx(845,1): error TS1128: Declaration or statement expected.
