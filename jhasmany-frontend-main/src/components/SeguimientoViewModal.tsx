@@ -1,8 +1,9 @@
 import React from 'react';
 import { formatDate } from '../utils/dateUtils';
 import { formatFullName } from '../utils/formatters';
-import { X, ClipboardList, User, Activity, FileText, Calendar } from 'lucide-react';
+import { X, ClipboardList, User, Activity, FileText, Calendar, Printer, MessageCircle } from 'lucide-react';
 import type { HistoriaClinica, Paciente } from '../types';
+import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 
 interface Props {
     isOpen: boolean;
@@ -125,6 +126,48 @@ const SeguimientoViewModal: React.FC<Props> = ({
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Receta section if present */}
+                                        {item.receta && (
+                                            <div className="mt-6 pt-6 border-t border-gray-100 dark:border-white/5 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-950/20 p-4 rounded-xl">
+                                                <div className="flex-1">
+                                                    <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-widest block mb-2">Receta Médica Asociada:</span>
+                                                    {item.receta.detalles && item.receta.detalles.length > 0 ? (
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {item.receta.detalles.map((det, index) => (
+                                                                <div key={index} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-1.5">
+                                                                    <span className="text-green-500 font-bold">•</span>
+                                                                    <div>
+                                                                        <span className="font-semibold">{det.medicamento?.medicamento}</span>
+                                                                        <span className="text-xs text-gray-500 dark:text-gray-400 block">{det.posologia} - {det.tiempo} ({det.via}) - Cant: {det.cantidad}</span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-gray-500 text-sm italic">Sin medicamentos en la receta.</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex items-center gap-2 self-end md:self-center">
+                                                    <button
+                                                        onClick={() => handlePrintReceta(item.receta!)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                                        title="Imprimir Receta"
+                                                    >
+                                                        <Printer size={14} />
+                                                        Imprimir
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleWhatsAppReceta(item.receta!)}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                                        title="Enviar por WhatsApp"
+                                                    >
+                                                        <MessageCircle size={14} />
+                                                        WhatsApp
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                     </div>
                                 </div>

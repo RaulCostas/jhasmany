@@ -16,7 +16,8 @@ interface HistoriaClinicaListProps {
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import Pagination from './Pagination';
-import { Printer, PenTool, X, Calendar, Activity } from 'lucide-react';
+import { Printer, PenTool, X, Calendar, Activity, MessageCircle } from 'lucide-react';
+import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 
 
 const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onDelete, onEdit, onNewHistoria, onPrint, onViewPlan, onViewTimeline, onReminder }) => {
@@ -205,7 +206,21 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         </ul>
                                     ) : '-'}
                                 </td>
-                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate" title={item.plan_trabajo}>{item.plan_trabajo || '-'}</td>
+                                <td className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 max-w-xs" title={item.plan_trabajo}>
+                                    <div className="truncate">{item.plan_trabajo || '-'}</div>
+                                    {item.receta && item.receta.detalles && item.receta.detalles.length > 0 && (
+                                        <div className="mt-1.5 pt-1.5 border-t border-gray-100 dark:border-gray-700">
+                                            <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase block tracking-wider mb-0.5">Receta:</span>
+                                            <ul className="list-disc list-inside text-[11px] text-gray-600 dark:text-gray-300 space-y-0.5">
+                                                {item.receta.detalles.map((det, index) => (
+                                                    <li key={index} className="truncate" title={`${det.medicamento?.medicamento} - Cant: ${det.cantidad}`}>
+                                                        <span className="font-semibold">{det.medicamento?.medicamento}</span> ({det.cantidad})
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     {item.derivar_consulta === 'SI' ? `SÍ (${item.derivar_consulta_detalle || ''})` : 'NO'}
                                 </td>
@@ -221,6 +236,24 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                                                 </svg>
                                             </button>
+                                        )}
+                                        {item.receta && (
+                                            <>
+                                                <button
+                                                    onClick={() => handlePrintReceta(item.receta!)}
+                                                    className="p-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                    title="Imprimir Receta"
+                                                >
+                                                    <Printer size={14} />
+                                                </button>
+                                                <button
+                                                    onClick={() => handleWhatsAppReceta(item.receta!)}
+                                                    className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                    title="Enviar Receta por WhatsApp"
+                                                >
+                                                    <MessageCircle size={14} />
+                                                </button>
+                                            </>
                                         )}
                                         <button
                                             onClick={() => onEdit(item)}

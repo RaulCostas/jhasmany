@@ -71,6 +71,7 @@ export class RecetaService {
 
         if (detalles) {
             await this.detalleRepository.delete({ recetaId: id });
+            receta.detalles = [];
         }
 
         this.recetaRepository.merge(receta, recetaData);

@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import type { Paciente, HistoriaClinica, HistoriaClinicaDiagnostico } from '../types';
+import type { Paciente, HistoriaClinica, HistoriaClinicaDiagnostico, Medicamento, RecetaDetalle } from '../types';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { getLocalDateString } from '../utils/dateUtils';
 import { CIE10_DISORDERS } from '../constants/cie10';
 import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle } from 'lucide-react';
+import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
+
+const viasAdministracion = [
+    'Oral', 'Sublingual', 'Rectal', 'Intravenosa', 'Intramoscular', 
+    'Subcutanea', 'Dermica', 'Nasal', 'Oftalmologica', 'Inhalatoria', 
+    'Epidural', 'Intratecal', 'Vaginal', 'Intraarticular', 'Parenteral', 'Otros'
+];
 
 interface HistoriaClinicaFormProps {
     pacienteId: number;
@@ -38,6 +45,27 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
     const [diagnosticosList, setDiagnosticosList] = useState<HistoriaClinicaDiagnostico[]>([]);
     const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
     const [showManual, setShowManual] = useState(false);
+    const [medicamentosCatalog, setMedicamentosCatalog] = useState<Medicamento[]>([]);
+    const [emitirReceta, setEmitirReceta] = useState(false);
+    const [recetaDetalles, setRecetaDetalles] = useState<RecetaDetalle[]>([{
+        id: 0,
+        recetaId: 0,
+        medicamentoId: 0,
+        tiempo: '',
+        via: 'Oral',
+        posologia: '',
+        cantidad: ''
+    }]);
+
+    useEffect(() => {
+        api.get('/medicamento?limit=9999')
+            .then(res => {
+                setMedicamentosCatalog(res.data.data || []);
+            })
+            .catch(err => {
+                console.error('Error loading medicines catalog:', err);
+            });
+    }, []);
 
     const manualSections: ManualSection[] = [
         {
@@ -69,6 +97,22 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                 derivar_consulta_detalle: historiaToEdit.derivar_consulta_detalle || ''
             });
             setDiagnosticosList(historiaToEdit.diagnosticos || []);
+            
+            if (historiaToEdit.receta) {
+                setEmitirReceta(true);
+                setRecetaDetalles(historiaToEdit.receta.detalles || []);
+            } else {
+                setEmitirReceta(false);
+                setRecetaDetalles([{
+                    id: 0,
+                    recetaId: 0,
+                    medicamentoId: 0,
+                    tiempo: '',
+                    via: 'Oral',
+                    posologia: '',
+                    cantidad: ''
+                }]);
+            }
         } else {
             resetForm();
         }
@@ -97,6 +141,16 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
         });
         setDiagnosticosList([]);
         setSearchTerms({});
+        setEmitirReceta(false);
+        setRecetaDetalles([{
+            id: 0,
+            recetaId: 0,
+            medicamentoId: 0,
+            tiempo: '',
+            via: 'Oral',
+            posologia: '',
+            cantidad: ''
+        }]);
     };
 
     // Diagnoses methods
@@ -126,6 +180,30 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
         });
     };
 
+    const addRecetaDetalle = () => {
+        setRecetaDetalles(prev => [...prev, {
+            id: 0,
+            recetaId: 0,
+            medicamentoId: 0,
+            tiempo: '',
+            via: 'Oral',
+            posologia: '',
+            cantidad: ''
+        }]);
+    };
+
+    const removeRecetaDetalle = (index: number) => {
+        setRecetaDetalles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRecetaDetalleChange = (index: number, field: keyof RecetaDetalle, value: any) => {
+        setRecetaDetalles(prev => {
+            const newDetalles = [...prev];
+            newDetalles[index] = { ...newDetalles[index], [field]: value };
+            return newDetalles;
+        });
+    };
+
     const handleSave = async () => {
         // Validate diagnoses
         const hasEmptyDiag = diagnosticosList.some(d => !d.diagnostico.trim());
@@ -140,11 +218,28 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
             return;
         }
 
+        // Validate recipe if enabled
+        let validRecetaDetalles: any[] = [];
+        if (emitirReceta) {
+            validRecetaDetalles = recetaDetalles.filter(d => d.medicamentoId > 0);
+            if (validRecetaDetalles.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Receta incompleta',
+                    text: 'Por favor seleccione al menos un medicamento válido si desea emitir una receta, o desmarque la casilla de receta.',
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                });
+                return;
+            }
+        }
+
         try {
             const payload: any = {
                 ...formData,
                 pacienteId: Number(pacienteId),
-                diagnosticos: diagnosticosList
+                diagnosticos: diagnosticosList,
+                receta: emitirReceta ? { detalles: validRecetaDetalles } : { detalles: [] }
             };
 
             // Add user ID for auditing
@@ -518,6 +613,124 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                             </div>
                         )}
                     </div>
+                </div>
+
+                {/* --- RECETA MEDICA (OPCIONAL) --- */}
+                <div className="bg-gray-50 dark:bg-gray-700/30 p-6 rounded-xl border border-gray-200 dark:border-gray-600 space-y-4">
+                    <div className="flex items-center justify-between border-b dark:border-gray-600 pb-2">
+                        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide flex items-center gap-2">
+                            <span>📋</span> Receta Médica (Opcional)
+                        </h4>
+                        <label className="inline-flex items-center cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={emitirReceta}
+                                onChange={(e) => setEmitirReceta(e.target.checked)}
+                                className="form-checkbox h-4 w-4 text-blue-600 focus:ring-blue-500 rounded border-gray-300 dark:border-gray-600"
+                            />
+                            <span className="ml-2 text-sm text-gray-700 dark:text-gray-300 font-bold">Emitir Receta</span>
+                        </label>
+                    </div>
+
+                    {emitirReceta && (
+                        <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs text-gray-500 dark:text-gray-400">Configure los medicamentos a prescribir en esta consulta.</span>
+                                <button 
+                                    type="button" 
+                                    onClick={addRecetaDetalle} 
+                                    className="p-1.5 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-lg flex items-center gap-1.5 shadow transition-all text-xs font-semibold transform hover:-translate-y-0.5"
+                                >
+                                    <Plus size={14} />
+                                    Agregar Medicamento
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                {recetaDetalles.map((detalle, idx) => (
+                                    <div key={idx} className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm relative">
+                                        {/* Header Row */}
+                                        <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100 dark:border-gray-700">
+                                            <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                                                Medicamento #{idx + 1}
+                                            </span>
+                                            {!(recetaDetalles.length === 1 && idx === 0) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeRecetaDetalle(idx)}
+                                                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-colors"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Select Medicamento */}
+                                        <div className="mb-3">
+                                            <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Medicamento</label>
+                                            <SearchableMedicamentoSelect
+                                                medicamentosCatalog={medicamentosCatalog}
+                                                selectedId={detalle.medicamentoId}
+                                                onSelect={(val) => handleRecetaDetalleChange(idx, 'medicamentoId', val)}
+                                                required
+                                                className="w-full"
+                                            />
+                                        </div>
+
+                                        {/* Grid fields */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Tiempo</label>
+                                                <input
+                                                    type="text"
+                                                    value={detalle.tiempo}
+                                                    onChange={(e) => handleRecetaDetalleChange(idx, 'tiempo', e.target.value)}
+                                                    placeholder="Ej: 5 días"
+                                                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Vía</label>
+                                                <select
+                                                    value={detalle.via}
+                                                    onChange={(e) => handleRecetaDetalleChange(idx, 'via', e.target.value)}
+                                                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                    required
+                                                >
+                                                    {viasAdministracion.map(v => (
+                                                        <option key={v} value={v}>{v}</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Posología</label>
+                                                <input
+                                                    type="text"
+                                                    value={detalle.posologia}
+                                                    onChange={(e) => handleRecetaDetalleChange(idx, 'posologia', e.target.value)}
+                                                    placeholder="Ej: 1 tableta"
+                                                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Cantidad</label>
+                                                <input
+                                                    type="text"
+                                                    value={detalle.cantidad}
+                                                    onChange={(e) => handleRecetaDetalleChange(idx, 'cantidad', e.target.value)}
+                                                    placeholder="Ej: 15"
+                                                    className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Footer Buttons */}

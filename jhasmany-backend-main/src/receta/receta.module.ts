@@ -16,5 +16,6 @@ import { FirmasModule } from '../firmas/firmas.module';
     ],
     controllers: [RecetaController],
     providers: [RecetaService, RecetaPdfService],
+    exports: [RecetaService, TypeOrmModule]
 })
 export class RecetaModule { }

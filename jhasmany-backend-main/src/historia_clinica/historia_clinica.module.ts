@@ -9,12 +9,14 @@ import { HistoriaClinicaPdfService } from './historia-clinica-pdf.service';
 import { ChatbotModule } from '../chatbot/chatbot.module';
 import { Pago } from '../pagos/entities/pago.entity';
 import { StorageModule } from '../common/storage/storage.module';
+import { RecetaModule } from '../receta/receta.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([HistoriaClinica, Pago, HistoriaClinicaDiagnostico]),
         forwardRef(() => ChatbotModule),
         StorageModule,
+        RecetaModule,
     ],
     controllers: [HistoriaClinicaController],
     providers: [HistoriaClinicaService, HistoriaClinicaPdfService],

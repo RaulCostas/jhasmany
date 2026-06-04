@@ -438,6 +438,7 @@ export interface HistoriaClinica {
     derivar_consulta: string; // 'SI' | 'NO'
     derivar_consulta_detalle?: string;
     diagnosticos?: HistoriaClinicaDiagnostico[];
+    receta?: Receta;
     createdAt: string;
     updatedAt: string;
 }

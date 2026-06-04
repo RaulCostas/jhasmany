@@ -1,7 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, OneToOne, JoinColumn, CreateDateColumn, UpdateDateColumn, OneToMany, Index } from 'typeorm';
 import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { User } from '../../users/entities/user.entity';
 import { HistoriaClinicaDiagnostico } from './historia_clinica_diagnostico.entity';
+import { Receta } from '../../receta/entities/receta.entity';
 
 @Entity('historia_clinica')
 export class HistoriaClinica {
@@ -53,6 +54,9 @@ export class HistoriaClinica {
     // Seccion DIAGNOSTICO
     @OneToMany(() => HistoriaClinicaDiagnostico, (diagnostico) => diagnostico.historiaClinica, { cascade: true })
     diagnosticos: HistoriaClinicaDiagnostico[];
+
+    @OneToOne(() => Receta, (receta) => receta.historiaClinica, { nullable: true })
+    receta: Receta;
 
     // Auditing / User relation
     @Column({ type: 'int', nullable: true })
