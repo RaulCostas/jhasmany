@@ -4,7 +4,7 @@ import { formatDate } from './dateUtils';
 import { formatFullName } from './formatters';
 import type { Receta } from '../types';
 
-export const handlePrintReceta = async (receta: Receta) => {
+export const handlePrintReceta = async (receta: Receta, diagnosticos?: any[]) => {
     // Fetch signatures
     let signatures: any[] = [];
     try {
@@ -65,6 +65,18 @@ export const handlePrintReceta = async (receta: Receta) => {
         if (g === 'femenino' || g === 'f') return 'Femenino';
         return genero;
     };
+
+    // Diagnoses display helper
+    const listDiags = diagnosticos || (receta as any).historiaClinica?.diagnosticos || [];
+    let diagnosticosHtml = '';
+    if (listDiags && listDiags.length > 0) {
+        const diagsStr = listDiags.map((d: any) => `${d.diagnostico} (${d.tipo})`).join(', ');
+        diagnosticosHtml = `
+            <div style="border-top: 1px solid #ddd; margin-top: 10px; padding-top: 10px; font-size: 11px; color: #333;">
+                <strong>DIAGNÓSTICO(S):</strong> ${diagsStr}
+            </div>
+        `;
+    }
 
     // Generate medication rows
     let medicationRows = '';
@@ -253,6 +265,7 @@ export const handlePrintReceta = async (receta: Receta) => {
                         <strong>SEXO:</strong> ${formatGenero(receta.paciente?.genero)}
                     </div>
                 </div>
+                ${diagnosticosHtml}
             </div>
 
             <table>

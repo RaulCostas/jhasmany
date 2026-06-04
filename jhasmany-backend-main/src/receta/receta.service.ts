@@ -46,7 +46,7 @@ export class RecetaService {
         const whereOption = pacienteId ? { pacienteId } : {};
         return await this.recetaRepository.find({
             where: whereOption,
-            relations: ['paciente', 'user', 'detalles', 'detalles.medicamento'],
+            relations: ['paciente', 'user', 'detalles', 'detalles.medicamento', 'historiaClinica', 'historiaClinica.diagnosticos'],
             order: {
                 fecha: 'DESC',
                 id: 'DESC'
@@ -57,7 +57,7 @@ export class RecetaService {
     async findOne(id: number) {
         return await this.recetaRepository.findOne({
             where: { id },
-            relations: ['paciente', 'user', 'detalles', 'detalles.medicamento']
+            relations: ['paciente', 'user', 'detalles', 'detalles.medicamento', 'historiaClinica', 'historiaClinica.diagnosticos']
         });
     }
 

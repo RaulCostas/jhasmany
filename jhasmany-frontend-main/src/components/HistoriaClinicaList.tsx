@@ -240,7 +240,7 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         {item.receta && (
                                             <>
                                                 <button
-                                                    onClick={() => handlePrintReceta(item.receta!)}
+                                                    onClick={() => handlePrintReceta(item.receta!, item.diagnosticos)}
                                                     className="p-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                                                     title="Imprimir Receta"
                                                 >

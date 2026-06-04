@@ -555,6 +555,7 @@ export interface Receta {
     fecha: string;
     detalles?: RecetaDetalle[];
     esta_firmado?: boolean;
+    historiaClinica?: HistoriaClinica;
 }
 
 export interface RecetaDetalle {

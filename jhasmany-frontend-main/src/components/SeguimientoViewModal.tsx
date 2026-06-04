@@ -150,7 +150,7 @@ const SeguimientoViewModal: React.FC<Props> = ({
                                                 </div>
                                                 <div className="flex items-center gap-2 self-end md:self-center">
                                                     <button
-                                                        onClick={() => handlePrintReceta(item.receta!)}
+                                                        onClick={() => handlePrintReceta(item.receta!, item.diagnosticos)}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
                                                         title="Imprimir Receta"
                                                     >
