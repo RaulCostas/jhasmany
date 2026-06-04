@@ -15,6 +15,40 @@ export class CreateHistoriaClinicaDiagnosticoDto {
     tipo: string; // 'Definitivo' | 'Repetitivo' | 'Presuntivo'
 }
 
+export class CreateRecetaDetalleDto {
+    @IsOptional()
+    @IsNumber()
+    id?: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    medicamentoId: number;
+
+    @IsNotEmpty()
+    @IsString()
+    tiempo: string;
+
+    @IsNotEmpty()
+    @IsString()
+    via: string;
+
+    @IsNotEmpty()
+    @IsString()
+    posologia: string;
+
+    @IsNotEmpty()
+    @IsString()
+    cantidad: string;
+}
+
+export class CreateRecetaDto {
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateRecetaDetalleDto)
+    detalles?: CreateRecetaDetalleDto[];
+}
+
 export class CreateHistoriaClinicaDto {
     @IsNotEmpty()
     @IsNumber()
@@ -65,6 +99,11 @@ export class CreateHistoriaClinicaDto {
     @ValidateNested({ each: true })
     @Type(() => CreateHistoriaClinicaDiagnosticoDto)
     diagnosticos?: CreateHistoriaClinicaDiagnosticoDto[];
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => CreateRecetaDto)
+    receta?: CreateRecetaDto;
 
     @IsOptional()
     @IsNumber()
