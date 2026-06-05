@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase } from 'lucide-react';
+import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare } from 'lucide-react';
+import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 import ManualModal, { type ManualSection } from './ManualModal';
 
 interface PacienteTabFichaProps {
@@ -724,21 +725,92 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
                             </h3>
 
                             <div className="bg-green-50/50 dark:bg-green-900/10 border border-green-100 dark:border-green-800/30 p-6 rounded-2xl">
-                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                                    <div className="flex-1">
-                                        <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400 block mb-2">Diagnóstico Presuntivo</span>
-                                        <p className="text-base text-gray-800 dark:text-gray-105 font-semibold whitespace-pre-wrap leading-relaxed">
-                                            {ficha.diagnostico_presuntivo || <span className="text-gray-400 font-normal italic">Sin registrar</span>}
-                                        </p>
+                                {ficha.diagnosticos && ficha.diagnosticos.length > 0 ? (
+                                    <div className="space-y-4">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-green-600 dark:text-green-400 block mb-2">Diagnósticos Registrados</span>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            {ficha.diagnosticos.map((diag, index) => (
+                                                <div key={index} className="flex items-center justify-between p-4 bg-white dark:bg-gray-800 border border-green-100/50 dark:border-green-800/30 rounded-xl shadow-sm">
+                                                    <div className="flex items-center gap-3">
+                                                        <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
+                                                            diag.tipo === 'Definitivo' ? 'bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-300' :
+                                                            diag.tipo === 'Repetitivo' ? 'bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300' :
+                                                            'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300'
+                                                        }`}>
+                                                            {diag.tipo}
+                                                        </span>
+                                                        <p className="text-base text-gray-800 dark:text-gray-100 font-bold leading-relaxed">
+                                                            {diag.diagnostico}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <div className="bg-white dark:bg-gray-800 border-2 border-dashed border-green-250 dark:border-green-800 p-4 rounded-xl flex flex-col items-center justify-center shrink-0 min-w-[150px] shadow-sm">
-                                        <span className="text-[9px] font-black text-green-600 dark:text-green-400 uppercase tracking-widest">Código CIE 10</span>
-                                        <span className="text-xl font-black text-gray-800 dark:text-white mt-1 uppercase tracking-wider">
-                                            {ficha.diagnostico_cie10 || <span className="text-gray-400 font-normal italic">—</span>}
-                                        </span>
+                                ) : (
+                                    <p className="text-gray-500 italic text-sm">Sin diagnósticos registrados.</p>
+                                )}
+                            </div>
+
+                            {/* Receta section if present */}
+                            {ficha.receta && (
+                                <div className="mt-6 pt-6 border-t border-gray-150 dark:border-gray-700 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-green-50/50 dark:bg-green-950/10 border border-green-100 dark:border-green-950/20 p-4 rounded-xl">
+                                    <div className="flex-1">
+                                        <span className="text-[10px] font-bold text-green-600 dark:text-green-400 uppercase tracking-widest block mb-2">Receta Médica Emitida en Registro:</span>
+                                        {ficha.receta.detalles && ficha.receta.detalles.length > 0 ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                {ficha.receta.detalles.map((det, index) => (
+                                                    <div key={index} className="text-sm text-gray-700 dark:text-gray-300 flex items-start gap-1.5">
+                                                        <span className="text-green-500 font-bold">•</span>
+                                                        <div>
+                                                            <span className="font-semibold">{det.medicamento?.medicamento}</span>
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400 block">{det.posologia} - {det.tiempo} ({det.via}) - Cant: {det.cantidad}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="text-gray-500 text-sm italic">Sin medicamentos en la receta.</p>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2 self-end md:self-center">
+                                        <button
+                                            onClick={() => {
+                                                const recetaConPaciente = {
+                                                    ...ficha.receta,
+                                                    paciente: {
+                                                        ...paciente,
+                                                        celular: paciente.telefono_celular
+                                                    }
+                                                };
+                                                handlePrintReceta(recetaConPaciente as any, ficha.diagnosticos);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                            title="Imprimir Receta"
+                                        >
+                                            <Printer size={14} />
+                                            Imprimir
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const recetaConPaciente = {
+                                                    ...ficha.receta,
+                                                    paciente: {
+                                                        ...paciente,
+                                                        celular: paciente.telefono_celular
+                                                    }
+                                                };
+                                                handleWhatsAppReceta(recetaConPaciente as any);
+                                            }}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                            title="Enviar por WhatsApp"
+                                        >
+                                            <MessageSquare size={14} />
+                                            WhatsApp
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )
                 )}

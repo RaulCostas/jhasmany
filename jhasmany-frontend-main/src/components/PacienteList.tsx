@@ -1048,10 +1048,30 @@ const PacienteList: React.FC = () => {
                     <!-- VII. IMPRESION DIAGNOSTICA -->
                     <div class="section-block">
                         <h2>VII. Impresión Diagnóstica</h2>
-                        <div class="info-grid">
-                            <div class="field span-3"><span class="label">Diagnóstico Principal / Presuntivo</span><div class="value" style="font-weight: 700;">${ficha?.diagnostico_presuntivo || '-'}</div></div>
-                            <div class="field"><span class="label">CIE 10</span><div class="value" style="font-weight: 800;">${ficha?.diagnostico_cie10 || '-'}</div></div>
-                        </div>
+                        ${ficha?.diagnosticos && ficha.diagnosticos.length > 0 ? `
+                            <div style="margin-top: 4px;">
+                                <table style="width:100%; border-collapse:collapse; margin-top:2px;">
+                                    <thead>
+                                        <tr>
+                                            <th style="text-align:left; font-size:7.5px; border-bottom:1px solid #e2e8f0; padding:3px; color:#718096; text-transform:uppercase;">Diagnóstico</th>
+                                            <th style="text-align:left; font-size:7.5px; border-bottom:1px solid #e2e8f0; padding:3px; color:#718096; text-transform:uppercase; width:120px;">Tipo</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${ficha.diagnosticos.map(d => `
+                                            <tr>
+                                                <td style="font-size:9px; padding:4px 3px; border-bottom:1px solid #edf2f7; font-weight:600;">${d.diagnostico}</td>
+                                                <td style="font-size:8.5px; padding:4px 3px; border-bottom:1px solid #edf2f7;"><span style="font-weight:700; color:#1e40af;">${d.tipo}</span></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `
+                            <div style="font-size: 9px; padding: 4px; font-style: italic; color: #718096;">
+                                Sin diagnósticos registrados
+                            </div>
+                        `}
                     </div>
 
                     <div class="signature-section">

@@ -1,10 +1,13 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Paciente } from './entities/paciente.entity';
 import { FichaMedica } from './entities/ficha_medica.entity';
+import { FichaMedicaDiagnostico } from './entities/ficha_medica_diagnostico.entity';
 import { CreatePacienteDto } from './dto/create-paciente.dto';
 import { UpdatePacienteDto } from './dto/update-paciente.dto';
+import { Receta } from '../receta/entities/receta.entity';
+import { RecetaService } from '../receta/receta.service';
 
 @Injectable()
 export class PacientesService {
@@ -14,6 +17,10 @@ export class PacientesService {
         @InjectRepository(FichaMedica)
         private fichaRepository: Repository<FichaMedica>,
         private dataSource: DataSource,
+        @Inject(forwardRef(() => RecetaService))
+        private recetaService: RecetaService,
+        @InjectRepository(Receta)
+        private recetaRepository: Repository<Receta>,
     ) { }
 
     // Whitelist de campos permitidos para la entidad Paciente
@@ -87,7 +94,7 @@ export class PacientesService {
         'examen_mental_cognicion_conciencia', 'examen_mental_cognicion_atencion', 'examen_mental_cognicion_memoria', 'examen_mental_cognicion_inteligencia', 'examen_mental_cognicion_juicio',
         'examen_mental_funciones_ejecutivas', 'examen_mental_conciencia_enfermedad',
         // VIII. IMPRESION DIAGNOSTICA
-        'diagnostico_presuntivo', 'diagnostico_cie10'
+        'diagnosticos', 'receta'
     ];
 
     private splitDto(dto: any): { pacienteData: any; fichaData: any } {
@@ -147,15 +154,35 @@ export class PacientesService {
             }
             const savedPaciente = await manager.save(Paciente, paciente);
 
+            const { receta, ...fichaCleanData } = fichaData;
             const ficha = manager.create(FichaMedica, {
-                ...fichaData,
+                ...fichaCleanData,
                 pacienteId: savedPaciente.id,
             });
-            await manager.save(FichaMedica, ficha);
+            const savedFicha = await manager.save(FichaMedica, ficha);
+
+            if (receta && receta.detalles && receta.detalles.length > 0) {
+                const validDetalles = receta.detalles.filter((d: any) => d.medicamentoId > 0);
+                if (validDetalles.length > 0) {
+                    await this.recetaService.create({
+                        pacienteId: savedPaciente.id,
+                        userId: savedPaciente.usuarioId,
+                        fecha: savedPaciente.fecha_ingreso,
+                        fichaMedicaId: savedFicha.id,
+                        detalles: validDetalles
+                    });
+                }
+            }
 
             return (await manager.findOne(Paciente, {
                 where: { id: savedPaciente.id },
-                relations: ['fichaClinica'],
+                relations: [
+                    'fichaClinica', 
+                    'fichaClinica.diagnosticos',
+                    'fichaClinica.receta',
+                    'fichaClinica.receta.detalles',
+                    'fichaClinica.receta.detalles.medicamento'
+                ],
             }))!;
         });
     }
@@ -206,7 +233,13 @@ export class PacientesService {
     async findOne(id: number): Promise<Paciente> {
         const paciente = await this.pacientesRepository.findOne({
             where: { id },
-            relations: ['fichaClinica'],
+            relations: [
+                'fichaClinica', 
+                'fichaClinica.diagnosticos',
+                'fichaClinica.receta',
+                'fichaClinica.receta.detalles',
+                'fichaClinica.receta.detalles.medicamento'
+            ],
         });
         if (!paciente) {
             throw new NotFoundException(`Paciente #${id} not found`);
@@ -227,21 +260,59 @@ export class PacientesService {
             }
             await manager.save(Paciente, paciente);
 
+            const { receta, ...fichaCleanData } = fichaData;
+
             // Update or create ficha
-            if (Object.keys(fichaData).length > 0) {
+            if (Object.keys(fichaCleanData).length > 0 || receta !== undefined) {
                 let ficha = await manager.findOne(FichaMedica, { where: { pacienteId: id } });
                 if (ficha) {
-                    manager.merge(FichaMedica, ficha, fichaData);
+                    if (fichaCleanData.diagnosticos) {
+                        await manager.delete(FichaMedicaDiagnostico, { fichaMedicaId: ficha.id });
+                    }
+                    manager.merge(FichaMedica, ficha, fichaCleanData);
                     await manager.save(FichaMedica, ficha);
                 } else {
-                    const newFicha = manager.create(FichaMedica, { ...fichaData, pacienteId: id });
-                    await manager.save(FichaMedica, newFicha);
+                    const newFicha = manager.create(FichaMedica, { ...fichaCleanData, pacienteId: id });
+                    ficha = await manager.save(FichaMedica, newFicha);
+                }
+
+                if (receta) {
+                    const existingReceta = await this.recetaRepository.findOne({
+                        where: { fichaMedicaId: ficha.id }
+                    });
+
+                    const validDetalles = receta.detalles ? receta.detalles.filter((d: any) => d.medicamentoId > 0) : [];
+
+                    if (validDetalles.length > 0) {
+                        const recetaPayload = {
+                            detalles: validDetalles,
+                            pacienteId: id,
+                            userId: paciente.usuarioId || updatePacienteDto.usuarioId,
+                            fecha: paciente.fecha_ingreso,
+                            fichaMedicaId: ficha.id
+                        };
+
+                        if (existingReceta) {
+                            await this.recetaService.update(existingReceta.id, recetaPayload);
+                        } else {
+                            await this.recetaService.create(recetaPayload);
+                        }
+                    } else if (existingReceta) {
+                        // If they cleared all medicines, delete the prescription
+                        await this.recetaService.remove(existingReceta.id);
+                    }
                 }
             }
 
             return (await manager.findOne(Paciente, {
                 where: { id },
-                relations: ['fichaClinica'],
+                relations: [
+                    'fichaClinica', 
+                    'fichaClinica.diagnosticos',
+                    'fichaClinica.receta',
+                    'fichaClinica.receta.detalles',
+                    'fichaClinica.receta.detalles.medicamento'
+                ],
             }))!;
         });
     }

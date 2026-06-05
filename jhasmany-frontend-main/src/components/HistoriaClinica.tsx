@@ -357,6 +357,7 @@ const HistoriaClinica: React.FC = () => {
                                 <HistoriaClinicaForm
                                     pacienteId={Number(id)}
                                     paciente={paciente}
+                                    historiaList={historia}
                                     onSuccess={() => {
                                         fetchHistoria();
                                         setShowForm(false);

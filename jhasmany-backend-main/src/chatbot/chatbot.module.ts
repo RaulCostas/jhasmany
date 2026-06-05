@@ -15,7 +15,7 @@ import { WhatsappSession } from './entities/whatsapp-session.entity';
 @Module({
     imports: [
         TypeOrmModule.forFeature([ChatbotIntento, WhatsappSession]),
-        PacientesModule,
+        forwardRef(() => PacientesModule),
         forwardRef(() => AgendaModule),
         forwardRef(() => PagosModule),
         forwardRef(() => HistoriaClinicaModule),

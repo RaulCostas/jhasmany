@@ -11,7 +11,7 @@ import { FirmasModule } from '../firmas/firmas.module';
 @Module({
     imports: [
         TypeOrmModule.forFeature([Receta, RecetaDetalle]),
-        ChatbotModule,
+        forwardRef(() => ChatbotModule),
         forwardRef(() => FirmasModule)
     ],
     controllers: [RecetaController],

@@ -58,26 +58,47 @@ export class RecetaPdfService {
             const doctorName = receta.user ? receta.user.name : 'N/A';
             const dateStr = this.formatDate(receta.fecha);
 
+            const infoStackChildren: any[] = [
+                {
+                    text: [
+                        { text: 'PACIENTE: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                        { text: patientName, color: '#333333', fontSize: 10 }
+                    ],
+                    margin: [0, 0, 0, 5]
+                },
+                {
+                    text: [
+                        { text: 'FECHA: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                        { text: dateStr, color: '#333333', fontSize: 10 }
+                    ]
+                }
+            ];
+
+            const listDiags = receta.historiaClinica?.diagnosticos || receta.fichaMedica?.diagnosticos || [];
+            if (listDiags && listDiags.length > 0) {
+                infoStackChildren.push({
+                    text: 'DIAGNÓSTICOS:',
+                    bold: true,
+                    color: '#2c3e50',
+                    fontSize: 9,
+                    margin: [0, 10, 0, 2]
+                });
+                listDiags.forEach((d: any) => {
+                    infoStackChildren.push({
+                        text: `• ${d.diagnostico} (${d.tipo})`,
+                        color: '#555555',
+                        fontSize: 9,
+                        margin: [5, 1, 0, 1]
+                    });
+                });
+            }
+
             content.push({
                 table: {
                     widths: ['*'],
                     body: [
                         [{
-                            stack: [
-                                {
-                                    text: [
-                                        { text: 'PACIENTE: ', bold: true, color: '#2c3e50', fontSize: 10 },
-                                        { text: patientName, color: '#333333', fontSize: 10 }
-                                    ],
-                                    margin: [0, 0, 0, 5]
-                                },
-                                {
-                                    text: [
-                                        { text: 'FECHA: ', bold: true, color: '#2c3e50', fontSize: 10 },
-                                        { text: dateStr, color: '#333333', fontSize: 10 }
-                                    ]
-                                }
-                            ],
+                            stack: infoStackChildren,
                             fillColor: '#f8f9fa',
                             margin: [10, 10, 10, 10]
                         }]

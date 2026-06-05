@@ -13,15 +13,19 @@ export class MedicamentoService {
     ) { }
 
     async create(createMedicamentoDto: CreateMedicamentoDto) {
+        const medicamentoUpper = createMedicamentoDto.medicamento.trim().toUpperCase();
         const existing = await this.medicamentoRepository.findOne({
-            where: { medicamento: ILike(createMedicamentoDto.medicamento.trim()) }
+            where: { medicamento: ILike(medicamentoUpper) }
         });
 
         if (existing) {
             throw new BadRequestException('El medicamento ya se encuentra registrado.');
         }
 
-        const medicamento = this.medicamentoRepository.create(createMedicamentoDto);
+        const medicamento = this.medicamentoRepository.create({
+            ...createMedicamentoDto,
+            medicamento: medicamentoUpper
+        });
         return this.medicamentoRepository.save(medicamento);
     }
 
@@ -53,14 +57,16 @@ export class MedicamentoService {
 
     async update(id: number, updateMedicamentoDto: UpdateMedicamentoDto) {
         if (updateMedicamentoDto.medicamento) {
+            const medicamentoUpper = updateMedicamentoDto.medicamento.trim().toUpperCase();
             const existing = await this.medicamentoRepository.createQueryBuilder('medicamento')
-                .where('LOWER(medicamento.medicamento) = LOWER(:nombre)', { nombre: updateMedicamentoDto.medicamento.trim() })
+                .where('LOWER(medicamento.medicamento) = LOWER(:nombre)', { nombre: medicamentoUpper })
                 .andWhere('medicamento.id != :id', { id })
                 .getOne();
 
             if (existing) {
                 throw new BadRequestException('Ya existe otro medicamento con este nombre.');
             }
+            updateMedicamentoDto.medicamento = medicamentoUpper;
         }
         return this.medicamentoRepository.update(id, updateMedicamentoDto);
     }

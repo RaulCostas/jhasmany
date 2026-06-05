@@ -1,6 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, OneToOne, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, OneToOne, OneToMany, ManyToOne, JoinColumn, CreateDateColumn, UpdateDateColumn } from 'typeorm';
 import { Paciente } from './paciente.entity';
 import { User } from '../../users/entities/user.entity';
+import { FichaMedicaDiagnostico } from './ficha_medica_diagnostico.entity';
+import { Receta } from '../../receta/entities/receta.entity';
 
 @Entity('ficha_medica')
 export class FichaMedica {
@@ -486,11 +488,11 @@ export class FichaMedica {
     examen_mental_conciencia_enfermedad: string;
 
     // VIII. IMPRESION DIAGNOSTICA
-    @Column({ type: 'text', nullable: true })
-    diagnostico_presuntivo: string;
+    @OneToMany(() => FichaMedicaDiagnostico, (diagnostico) => diagnostico.fichaMedica, { cascade: true })
+    diagnosticos: FichaMedicaDiagnostico[];
 
-    @Column({ type: 'text', nullable: true })
-    diagnostico_cie10: string;
+    @OneToOne(() => Receta, (receta) => receta.fichaMedica, { nullable: true })
+    receta: Receta;
 
     @Column({ type: 'varchar', length: 255, nullable: true })
     recomendado_por: string;

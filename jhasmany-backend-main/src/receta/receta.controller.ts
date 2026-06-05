@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, HttpException, HttpStatus, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpException, HttpStatus, Query, Inject, forwardRef } from '@nestjs/common';
 import { RecetaService } from './receta.service';
 import { RecetaPdfService } from './receta-pdf.service';
 import { ChatbotService } from '../chatbot/chatbot.service';
@@ -8,6 +8,7 @@ export class RecetaController {
     constructor(
         private readonly recetaService: RecetaService,
         private readonly pdfService: RecetaPdfService,
+        @Inject(forwardRef(() => ChatbotService))
         private readonly chatbotService: ChatbotService,
     ) { }
 

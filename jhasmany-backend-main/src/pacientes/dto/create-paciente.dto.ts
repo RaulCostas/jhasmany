@@ -1,4 +1,53 @@
-import { IsString, IsOptional, IsDateString, IsBoolean, ValidateIf, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsDateString, IsBoolean, ValidateIf, IsNumber, IsArray, ValidateNested, IsNotEmpty } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class CreateFichaMedicaDiagnosticoDto {
+    @IsOptional()
+    @IsNumber()
+    id?: number;
+
+    @IsNotEmpty()
+    @IsString()
+    diagnostico: string;
+
+    @IsNotEmpty()
+    @IsString()
+    tipo: string; // 'Definitivo' | 'Repetitivo' | 'Presuntivo'
+}
+
+export class CreateRecetaDetalleDto {
+    @IsOptional()
+    @IsNumber()
+    id?: number;
+
+    @IsNotEmpty()
+    @IsNumber()
+    medicamentoId: number;
+
+    @IsNotEmpty()
+    @IsString()
+    tiempo: string;
+
+    @IsNotEmpty()
+    @IsString()
+    via: string;
+
+    @IsNotEmpty()
+    @IsString()
+    posologia: string;
+
+    @IsNotEmpty()
+    @IsString()
+    cantidad: string;
+}
+
+export class CreateRecetaDto {
+    @IsOptional()
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateRecetaDetalleDto)
+    detalles?: CreateRecetaDetalleDto[];
+}
 
 export class CreatePacienteDto {
     @IsDateString()
@@ -770,11 +819,14 @@ export class CreatePacienteDto {
     examen_mental_conciencia_enfermedad?: string;
 
     // VIII. IMPRESION DIAGNOSTICA
-    @IsString()
     @IsOptional()
-    diagnostico_presuntivo?: string;
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => CreateFichaMedicaDiagnosticoDto)
+    diagnosticos?: CreateFichaMedicaDiagnosticoDto[];
 
-    @IsString()
     @IsOptional()
-    diagnostico_cie10?: string;
+    @ValidateNested()
+    @Type(() => CreateRecetaDto)
+    receta?: CreateRecetaDto;
 }

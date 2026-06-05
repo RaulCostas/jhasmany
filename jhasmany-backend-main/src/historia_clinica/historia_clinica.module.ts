@@ -16,7 +16,7 @@ import { RecetaModule } from '../receta/receta.module';
         TypeOrmModule.forFeature([HistoriaClinica, Pago, HistoriaClinicaDiagnostico]),
         forwardRef(() => ChatbotModule),
         StorageModule,
-        RecetaModule,
+        forwardRef(() => RecetaModule),
     ],
     controllers: [HistoriaClinicaController],
     providers: [HistoriaClinicaService, HistoriaClinicaPdfService],

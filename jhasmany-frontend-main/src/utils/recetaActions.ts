@@ -67,13 +67,18 @@ export const handlePrintReceta = async (receta: Receta, diagnosticos?: any[]) =>
     };
 
     // Diagnoses display helper
-    const listDiags = diagnosticos || (receta as any).historiaClinica?.diagnosticos || [];
+    const listDiags = diagnosticos || (receta as any).historiaClinica?.diagnosticos || (receta as any).fichaMedica?.diagnosticos || [];
     let diagnosticosHtml = '';
     if (listDiags && listDiags.length > 0) {
-        const diagsStr = listDiags.map((d: any) => `${d.diagnostico} (${d.tipo})`).join(', ');
+        const diagsRowsHtml = listDiags.map((d: any) => `
+            <div style="margin-top: 4px; padding-left: 5px;">• ${d.diagnostico} (${d.tipo})</div>
+        `).join('');
         diagnosticosHtml = `
             <div style="border-top: 1px solid #ddd; margin-top: 10px; padding-top: 10px; font-size: 11px; color: #333;">
-                <strong>DIAGNÓSTICO(S):</strong> ${diagsStr}
+                <strong>DIAGNÓSTICO(S):</strong>
+                <div style="margin-top: 2px;">
+                    ${diagsRowsHtml}
+                </div>
             </div>
         `;
     }

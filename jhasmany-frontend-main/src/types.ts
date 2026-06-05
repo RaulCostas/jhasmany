@@ -360,10 +360,17 @@ export interface FichaMedica {
     examen_mental_conciencia_enfermedad?: string;
 
     // VIII. IMPRESION DIAGNOSTICA
-    diagnostico_presuntivo?: string;
-    diagnostico_cie10?: string;
+    diagnosticos?: FichaMedicaDiagnostico[];
+    receta?: Receta;
 
     updatedAt?: string;
+}
+
+export interface FichaMedicaDiagnostico {
+    id?: number;
+    fichaMedicaId?: number;
+    diagnostico: string;
+    tipo: 'Definitivo' | 'Repetitivo' | 'Presuntivo';
 }
 
 export interface Paciente {

@@ -46,9 +46,10 @@ const MedicamentoForm: React.FC<MedicamentoFormProps> = ({ isOpen, onClose, id, 
     }, [id, isOpen]);
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const val = e.target.name === 'medicamento' ? e.target.value.toUpperCase() : e.target.value;
         setFormData({
             ...formData,
-            [e.target.name]: e.target.value
+            [e.target.name]: val
         });
     };
 

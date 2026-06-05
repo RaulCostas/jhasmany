@@ -3,7 +3,7 @@ import api from '../services/api';
 import type { Paciente, HistoriaClinica, HistoriaClinicaDiagnostico, Medicamento, RecetaDetalle } from '../types';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
-import { getLocalDateString } from '../utils/dateUtils';
+import { getLocalDateString, formatDate } from '../utils/dateUtils';
 import { CIE10_DISORDERS } from '../constants/cie10';
 import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle } from 'lucide-react';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
@@ -17,6 +17,7 @@ const viasAdministracion = [
 interface HistoriaClinicaFormProps {
     pacienteId: number;
     paciente?: Paciente | null;
+    historiaList?: HistoriaClinica[] | null;
     onSuccess: () => void;
     historiaToEdit: HistoriaClinica | null;
     onCancelEdit: () => void;
@@ -25,6 +26,7 @@ interface HistoriaClinicaFormProps {
 const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
     pacienteId,
     paciente,
+    historiaList,
     onSuccess,
     historiaToEdit,
     onCancelEdit,
@@ -117,6 +119,71 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
             resetForm();
         }
     }, [historiaToEdit]);
+
+    const getPreviousEncounter = () => {
+        if (!paciente) return null;
+
+        const list = historiaList || [];
+        let prevRecord: HistoriaClinica | null = null;
+
+        if (!historiaToEdit) {
+            if (list.length > 0) {
+                const sorted = [...list].sort((a, b) => b.id - a.id);
+                prevRecord = sorted[0];
+            }
+        } else {
+            const candidates = list.filter(item => item.id < historiaToEdit.id);
+            if (candidates.length > 0) {
+                const sorted = candidates.sort((a, b) => b.id - a.id);
+                prevRecord = sorted[0];
+            }
+        }
+
+        if (prevRecord) {
+            const diags = (prevRecord.diagnosticos || []).map(d => ({
+                diagnostico: d.diagnostico,
+                tipo: d.tipo
+            }));
+
+            const details = (prevRecord.receta?.detalles || []).map(d => ({
+                medicamentoNombre: d.medicamento?.medicamento || 'Medicamento',
+                tiempo: d.tiempo,
+                via: d.via,
+                posologia: d.posologia,
+                cantidad: d.cantidad
+            }));
+
+            return {
+                sourceName: `Seguimiento Clínico del ${formatDate(prevRecord.fecha)}`,
+                diagnosticos: diags,
+                recetaDetalles: details
+            };
+        } else if (paciente.fichaClinica) {
+            const diags = (paciente.fichaClinica.diagnosticos || []).map(d => ({
+                diagnostico: d.diagnostico,
+                tipo: d.tipo
+            }));
+
+
+            const details = (paciente.fichaClinica.receta?.detalles || []).map(d => ({
+                medicamentoNombre: d.medicamento?.medicamento || 'Medicamento',
+                tiempo: d.tiempo,
+                via: d.via,
+                posologia: d.posologia,
+                cantidad: d.cantidad
+            }));
+
+            return {
+                sourceName: 'Ficha Médica (Registro Inicial)',
+                diagnosticos: diags,
+                recetaDetalles: details
+            };
+        }
+
+        return null;
+    };
+
+    const prevEncounter = getPreviousEncounter();
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -374,10 +441,10 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                     <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide border-b dark:border-gray-600 pb-2">Anamnesis</h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Tipo de Enfermedad (jalar de Ficha) */}
+                        {/* Tiempo de Enfermedad (jalar de Ficha) */}
                         <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
                             <span className="block text-xs font-bold text-gray-400 uppercase">Tiempo / Tipo de Enfermedad (Ficha Médica)</span>
-                            <span className="text-sm text-gray-800 dark:text-gray-200 font-medium">
+                            <span className="text-sm text-gray-800 dark:text-gray-200 font-medium whitespace-pre-wrap">
                                 {paciente?.fichaClinica?.enf_actual_te || <span className="text-gray-400 italic">No registrado en Ficha</span>}
                             </span>
                         </div>
@@ -385,11 +452,69 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                         {/* Relato Cronológico (jalar de Ficha) */}
                         <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
                             <span className="block text-xs font-bold text-gray-400 uppercase">Relato Cronológico (Ficha Médica)</span>
-                            <span className="text-sm text-gray-800 dark:text-gray-200 font-medium line-clamp-3" title={paciente?.fichaClinica?.enf_actual_relato}>
+                            <span className="text-sm text-gray-800 dark:text-gray-200 font-medium whitespace-pre-wrap">
                                 {paciente?.fichaClinica?.enf_actual_relato || <span className="text-gray-400 italic">No registrado en Ficha</span>}
                             </span>
                         </div>
                     </div>
+
+                    {prevEncounter && (
+                        <div className="p-4 bg-blue-50/30 dark:bg-blue-900/10 rounded-xl border border-blue-100 dark:border-blue-900/50 space-y-3">
+                            <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 font-semibold text-xs uppercase tracking-wider">
+                                <Info size={14} className="shrink-0" />
+                                <span>Historial de Diagnósticos y Receta - {prevEncounter.sourceName}</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                {/* Diagnósticos */}
+                                <div className="space-y-1.5">
+                                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Diagnósticos Previos</span>
+                                    {prevEncounter.diagnosticos.length > 0 ? (
+                                        <div className="space-y-1">
+                                            {prevEncounter.diagnosticos.map((diag, idx) => (
+                                                <div key={idx} className="flex justify-between items-center text-xs p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
+                                                    <span className="text-gray-700 dark:text-gray-300 font-medium">{diag.diagnostico}</span>
+                                                    <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ml-2 shrink-0 ${
+                                                        diag.tipo === 'Definitivo' ? 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400' :
+                                                        diag.tipo === 'Repetitivo' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' :
+                                                        'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400'
+                                                    }`}>
+                                                        {diag.tipo}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-400 italic">Ningún diagnóstico registrado en el encuentro previo</span>
+                                    )}
+                                </div>
+
+                                {/* Receta */}
+                                <div className="space-y-1.5">
+                                    <span className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider">Receta Emitida</span>
+                                    {prevEncounter.recetaDetalles.length > 0 ? (
+                                        <div className="space-y-1.5">
+                                            {prevEncounter.recetaDetalles.map((det, idx) => (
+                                                <div key={idx} className="text-[11px] p-2 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700 space-y-1">
+                                                    <div className="font-bold text-gray-800 dark:text-gray-200 flex justify-between">
+                                                        <span>{det.medicamentoNombre}</span>
+                                                        <span className="text-[9px] text-gray-400 font-normal">{det.via}</span>
+                                                    </div>
+                                                    <div className="text-gray-500 dark:text-gray-400 grid grid-cols-2 gap-x-2 gap-y-0.5">
+                                                        <span><strong className="text-[9px] uppercase text-gray-400">Posología:</strong> {det.posologia}</span>
+                                                        <span><strong className="text-[9px] uppercase text-gray-400">Cantidad:</strong> {det.cantidad}</span>
+                                                        {det.tiempo && <span className="col-span-2"><strong className="text-[9px] uppercase text-gray-400">Tiempo:</strong> {det.tiempo}</span>}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <span className="text-xs text-gray-400 italic">Ningún medicamento recetado en el encuentro previo</span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Motivo de Visita</label>

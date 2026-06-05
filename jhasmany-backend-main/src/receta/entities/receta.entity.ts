@@ -3,6 +3,7 @@ import { Paciente } from '../../pacientes/entities/paciente.entity';
 import { User } from '../../users/entities/user.entity';
 import { RecetaDetalle } from './receta-detalle.entity';
 import { HistoriaClinica } from '../../historia_clinica/entities/historia_clinica.entity';
+import { FichaMedica } from '../../pacientes/entities/ficha_medica.entity';
 
 
 @Entity('receta')
@@ -39,6 +40,13 @@ export class Receta {
     @OneToOne(() => HistoriaClinica, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'historia_clinica_id' })
     historiaClinica: HistoriaClinica;
+
+    @Column({ type: 'int', name: 'ficha_medica_id', nullable: true })
+    fichaMedicaId: number | null;
+
+    @OneToOne(() => FichaMedica, { onDelete: 'CASCADE', nullable: true })
+    @JoinColumn({ name: 'ficha_medica_id' })
+    fichaMedica: FichaMedica;
 
     @Column({ type: 'boolean', default: false })
     esta_firmado: boolean;

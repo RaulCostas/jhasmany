@@ -5,7 +5,10 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
 import { getLocalDateString } from '../utils/dateUtils';
-import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope } from 'lucide-react';
+import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope, Trash2, AlertCircle } from 'lucide-react';
+import { CIE10_DISORDERS } from '../constants/cie10';
+import type { FichaMedicaDiagnostico, RecetaDetalle, Medicamento } from '../types';
+import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
 
 const PacienteForm: React.FC = () => {
     const navigate = useNavigate();
@@ -20,6 +23,20 @@ const PacienteForm: React.FC = () => {
     const [localCelular, setLocalCelular] = useState('');
     const [newPatientId, setNewPatientId] = useState<number | null>(null);
     const [activeTabForm, setActiveTabForm] = useState<'filiacion' | 'enfermedad_actual' | 'antecedentes' | 'antecedentes_familiares' | 'examen_fisico' | 'examen_mental' | 'impresion_diagnostica'>('filiacion');
+    const [diagnosticosList, setDiagnosticosList] = useState<FichaMedicaDiagnostico[]>([]);
+    const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
+
+    const [emitirReceta, setEmitirReceta] = useState(false);
+    const [recetaDetalles, setRecetaDetalles] = useState<RecetaDetalle[]>([{
+        id: 0,
+        recetaId: 0,
+        medicamentoId: 0,
+        tiempo: '',
+        via: 'Oral',
+        posologia: '',
+        cantidad: ''
+    }]);
+    const [medicamentosCatalog, setMedicamentosCatalog] = useState<Medicamento[]>([]);
 
     const countryCodes = [
         { code: '+591', label: '🇧🇴 +591' },
@@ -41,6 +58,16 @@ const PacienteForm: React.FC = () => {
             window.history.replaceState({}, document.title);
         }
     }, [location.state]);
+
+    useEffect(() => {
+        api.get('/medicamento?limit=9999')
+            .then(res => {
+                setMedicamentosCatalog(res.data.data || []);
+            })
+            .catch(err => {
+                console.error('Error loading medicines catalog:', err);
+            });
+    }, []);
 
     const manualSections: ManualSection[] = [
         {
@@ -292,9 +319,7 @@ const PacienteForm: React.FC = () => {
         examen_mental_funciones_ejecutivas: '',
         examen_mental_conciencia_enfermedad: '',
 
-        // VIII. IMPRESION DIAGNOSTICA
-        diagnostico_presuntivo: '',
-        diagnostico_cie10: '',
+
     });
 
     // Auto-calculate IMC based on Weight (Peso) and Height (Talla)
@@ -339,6 +364,23 @@ const PacienteForm: React.FC = () => {
                 ...(data.fichaClinica || {})
             };
             setFormData(flatData);
+            setDiagnosticosList(flatData.diagnosticos || []);
+
+            if (flatData.receta) {
+                setEmitirReceta(true);
+                setRecetaDetalles(flatData.receta.detalles || []);
+            } else {
+                setEmitirReceta(false);
+                setRecetaDetalles([{
+                    id: 0,
+                    recetaId: 0,
+                    medicamentoId: 0,
+                    tiempo: '',
+                    via: 'Oral',
+                    posologia: '',
+                    cantidad: ''
+                }]);
+            }
 
             // Handle splitting telefono_celular into code and number
             if (flatData.telefono_celular) {
@@ -360,6 +402,51 @@ const PacienteForm: React.FC = () => {
     };
 
 
+    const handleAddDiagnostico = () => {
+        setDiagnosticosList(prev => [...prev, { diagnostico: '', tipo: 'Presuntivo' }]);
+    };
+
+    const handleRemoveDiagnostico = (index: number) => {
+        setDiagnosticosList(prev => prev.filter((_, i) => i !== index));
+        setSearchTerms(prev => {
+            const copy = { ...prev };
+            delete copy[index];
+            return copy;
+        });
+    };
+
+    const handleUpdateDiagnosticoType = (index: number, tipo: 'Definitivo' | 'Repetitivo' | 'Presuntivo') => {
+        setDiagnosticosList(prev => prev.map((item, i) => i === index ? { ...item, tipo } : item));
+    };
+
+    const handleSelectDiagnostico = (index: number, val: string) => {
+        setDiagnosticosList(prev => prev.map((item, i) => i === index ? { ...item, diagnostico: val } : item));
+    };
+
+    const addRecetaDetalle = () => {
+        setRecetaDetalles(prev => [...prev, {
+            id: 0,
+            recetaId: 0,
+            medicamentoId: 0,
+            tiempo: '',
+            via: 'Oral',
+            posologia: '',
+            cantidad: ''
+        }]);
+    };
+
+    const removeRecetaDetalle = (index: number) => {
+        setRecetaDetalles(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const handleRecetaDetalleChange = (index: number, field: keyof RecetaDetalle, value: any) => {
+        setRecetaDetalles(prev => {
+            const copy = [...prev];
+            copy[index] = { ...copy[index], [field]: value };
+            return copy;
+        });
+    };
+
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value, type } = e.target;
         const checked = (e.target as HTMLInputElement).checked;
@@ -370,6 +457,17 @@ const PacienteForm: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        // Check for blank diagnoses
+        const hasEmptyDiag = diagnosticosList.some(d => !d.diagnostico.trim());
+        if (hasEmptyDiag) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Diagnósticos incompletos',
+                text: 'Por favor complete o elimine las filas de diagnóstico vacías.'
+            });
+            return;
+        }
         
         // Combine code and local number
         const fullCelular = `${countryCode}${localCelular}`;
@@ -405,6 +503,26 @@ const PacienteForm: React.FC = () => {
                 delete payload[key];
             }
         });
+
+        // Add diagnostics list to payload
+        payload.diagnosticos = diagnosticosList;
+
+        // Process receta
+        if (emitirReceta) {
+            const validRecetaDetalles = recetaDetalles.filter(d => d.medicamentoId > 0);
+            if (validRecetaDetalles.length === 0) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Receta vacía',
+                    text: 'Por favor seleccione al menos un medicamento válido si desea emitir una receta, o desmarque la casilla de receta.'
+                });
+                return;
+            }
+            payload.receta = { detalles: validRecetaDetalles };
+        } else {
+            payload.receta = { detalles: [] };
+        }
+
         try {
             let targetId = isEditing ? Number(id) : null;
             if (isEditing) {
@@ -1536,36 +1654,244 @@ const PacienteForm: React.FC = () => {
                 {activeTabForm === 'impresion_diagnostica' && (
                     <div className="space-y-6">
                         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 animate-slide-up space-y-6">
-                            <div className="flex items-center pb-2 border-b border-green-500/20">
+                            <div className="flex items-center pb-2 border-b border-green-500/20 mb-6">
                                 <Stethoscope size={24} className="text-green-600 mr-4" />
-                                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider font-sans font-bold">VII. Impresión Diagnóstica</h2>
+                                <h2 className="text-xl font-bold text-gray-800 dark:text-gray-100 uppercase tracking-wider font-sans">VII. Impresión Diagnóstica</h2>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-2">
-                                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Diagnóstico Presuntivo</label>
-                                    <textarea 
-                                        name="diagnostico_presuntivo" 
-                                        value={formData.diagnostico_presuntivo} 
-                                        onChange={handleChange} 
-                                        rows={3} 
-                                        placeholder="Escriba el o los diagnósticos presuntivos..." 
-                                        className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none resize-y text-sm font-semibold" 
-                                    />
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center border-b dark:border-gray-700 pb-2">
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide">Diagnósticos</h4>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddDiagnostico}
+                                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg flex items-center gap-1 shadow-sm transition-all"
+                                    >
+                                        <Plus size={14} />
+                                        Agregar Diagnóstico
+                                    </button>
                                 </div>
 
+                                {diagnosticosList.length === 0 ? (
+                                    <div className="flex items-center gap-2 text-sm text-gray-400 italic bg-white dark:bg-gray-850 p-4 rounded-lg border border-dashed border-gray-200 dark:border-gray-750">
+                                        <AlertCircle size={16} />
+                                        <span>No se han agregado diagnósticos para esta ficha. Haga clic en "Agregar Diagnóstico".</span>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {diagnosticosList.map((item, idx) => {
+                                            const activeSearch = searchTerms[idx] !== undefined;
+                                            const currentSearchVal = searchTerms[idx] || '';
+                                            
+                                            const filteredDisorders = CIE10_DISORDERS.filter(d => 
+                                                d.code.toLowerCase().includes(currentSearchVal.toLowerCase()) ||
+                                                d.description.toLowerCase().includes(currentSearchVal.toLowerCase())
+                                            );
+
+                                            return (
+                                                <div key={idx} className="flex flex-col md:flex-row gap-4 items-start bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm relative">
+                                                    
+                                                    {/* Diagnosis Select Auto-complete */}
+                                                    <div className="flex-1 w-full relative">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Diagnóstico</label>
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Escriba código o nombre para buscar (ej: F00)..."
+                                                            value={searchTerms[idx] !== undefined ? searchTerms[idx] : item.diagnostico}
+                                                            onFocus={() => setSearchTerms(prev => ({ ...prev, [idx]: item.diagnostico || '' }))}
+                                                            onBlur={() => setTimeout(() => {
+                                                                setSearchTerms(prev => {
+                                                                    const copy = { ...prev };
+                                                                    delete copy[idx];
+                                                                    return copy;
+                                                                });
+                                                            }, 200)}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                setSearchTerms(prev => ({ ...prev, [idx]: val }));
+                                                            }}
+                                                            className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                        />
+                                                        
+                                                        {/* Dropdown list */}
+                                                        {activeSearch && (
+                                                            <div className="absolute left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50 divide-y divide-gray-100 dark:divide-gray-700">
+                                                                {filteredDisorders.length === 0 ? (
+                                                                    <div className="p-3 text-xs text-gray-400 italic">No se encontraron resultados</div>
+                                                                ) : (
+                                                                    filteredDisorders.map(d => (
+                                                                        <button
+                                                                            key={d.code}
+                                                                            type="button"
+                                                                            onMouseDown={() => handleSelectDiagnostico(idx, `${d.code} ${d.description}`)}
+                                                                            className="w-full text-left px-3 py-2 text-xs text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors flex items-center gap-2 border-0 shadow-none focus:outline-none"
+                                                                        >
+                                                                            <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-bold px-1.5 py-0.5 rounded text-[10px]">{d.code}</span>
+                                                                            <span className="font-medium truncate">{d.description}</span>
+                                                                        </button>
+                                                                    ))
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Diagnostic Type Select */}
+                                                    <div className="w-full md:w-56">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1 uppercase tracking-wider">Tipo</label>
+                                                        <select
+                                                            value={item.tipo}
+                                                            onChange={(e) => handleUpdateDiagnosticoType(idx, e.target.value as any)}
+                                                            className="w-full px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                        >
+                                                            <option value="Definitivo">Definitivo</option>
+                                                            <option value="Repetitivo">Repetitivo</option>
+                                                            <option value="Presuntivo">Presuntivo</option>
+                                                        </select>
+                                                    </div>
+
+                                                    {/* Delete Diagnosis */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveDiagnostico(idx)}
+                                                        className="p-2 text-red-500 bg-transparent border-0 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg md:self-end mt-1 shadow-none focus:outline-none"
+                                                        title="Eliminar"
+                                                    >
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ===================== RECETA MÉDICA ===================== */}
+                        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-700 animate-slide-up space-y-6">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b dark:border-gray-600 pb-3">
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Código CIE 10</label>
-                                    <input 
-                                        type="text" 
-                                        name="diagnostico_cie10" 
-                                        value={formData.diagnostico_cie10} 
-                                        onChange={handleChange} 
-                                        placeholder="Ej: F32.9 / F41.1" 
-                                        className="w-full px-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none text-sm font-bold uppercase" 
-                                    />
+                                    <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wide flex items-center gap-2">
+                                        <span>📋</span> Receta Médica (Opcional)
+                                    </h4>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                        Active esta opción para adjuntar una receta médica a esta consulta.
+                                    </p>
+                                </div>
+                                <div className="flex items-center">
+                                    <label className="relative inline-flex items-center cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={emitirReceta}
+                                            onChange={(e) => setEmitirReceta(e.target.checked)}
+                                            className="sr-only peer"
+                                        />
+                                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-green-600"></div>
+                                        <span className="ml-3 text-xs font-bold text-gray-700 dark:text-gray-300">
+                                            {emitirReceta ? 'Emitir Receta: SÍ' : 'Emitir Receta: NO'}
+                                        </span>
+                                    </label>
                                 </div>
                             </div>
+
+                            {emitirReceta && (
+                                <div className="space-y-4 animate-in fade-in slide-in-from-top-1">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">Configure los medicamentos a prescribir.</span>
+                                        <button 
+                                            type="button" 
+                                            onClick={addRecetaDetalle} 
+                                            className="p-1.5 bg-green-600 hover:bg-green-700 active:scale-95 text-white rounded-lg flex items-center gap-1.5 shadow transition-all text-xs font-semibold transform hover:-translate-y-0.5"
+                                        >
+                                            <Plus size={14} />
+                                            Agregar Medicamento
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="space-y-4">
+                                        {recetaDetalles.map((detalle, idx) => (
+                                            <div key={idx} className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm relative">
+                                                {/* Header Row */}
+                                                <div className="flex items-center justify-between pb-2 mb-3 border-b border-gray-100 dark:border-gray-700">
+                                                    <span className="text-xs font-bold text-gray-500 dark:text-gray-400">
+                                                        Medicamento #{idx + 1}
+                                                    </span>
+                                                    {!(recetaDetalles.length === 1 && idx === 0) && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeRecetaDetalle(idx)}
+                                                            className="p-1 text-red-500 bg-transparent border-0 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-md transition-colors shadow-none focus:outline-none"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    )}
+                                                </div>
+
+                                                {/* Select Medicamento */}
+                                                <div className="mb-3">
+                                                    <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Medicamento</label>
+                                                    <SearchableMedicamentoSelect
+                                                        medicamentosCatalog={medicamentosCatalog}
+                                                        selectedId={detalle.medicamentoId}
+                                                        onSelect={(val) => handleRecetaDetalleChange(idx, 'medicamentoId', val)}
+                                                        required
+                                                        className="w-full"
+                                                    />
+                                                </div>
+
+                                                {/* Grid fields */}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Tiempo</label>
+                                                        <input
+                                                            type="text"
+                                                            value={detalle.tiempo}
+                                                            onChange={(e) => handleRecetaDetalleChange(idx, 'tiempo', e.target.value)}
+                                                            placeholder="Ej: 5 días"
+                                                            className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Vía</label>
+                                                        <select
+                                                            value={detalle.via}
+                                                            onChange={(e) => handleRecetaDetalleChange(idx, 'via', e.target.value)}
+                                                            className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                            required
+                                                        >
+                                                            {['Oral', 'Sublingual', 'Rectal', 'Intravenosa', 'Intramoscular', 'Subcutanea', 'Dermica', 'Nasal', 'Oftalmologica', 'Inhalatoria', 'Epidural', 'Intratecal', 'Vaginal', 'Intraarticular', 'Parenteral', 'Otros'].map(v => (
+                                                                <option key={v} value={v}>{v}</option>
+                                                            ))}
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Posología</label>
+                                                        <input
+                                                            type="text"
+                                                            value={detalle.posologia}
+                                                            onChange={(e) => handleRecetaDetalleChange(idx, 'posologia', e.target.value)}
+                                                            placeholder="Ej: 1 tableta"
+                                                            className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                            required
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1">Cantidad</label>
+                                                        <input
+                                                            type="text"
+                                                            value={detalle.cantidad}
+                                                            onChange={(e) => handleRecetaDetalleChange(idx, 'cantidad', e.target.value)}
+                                                            placeholder="Ej: 15"
+                                                            className="w-full px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-xs outline-none focus:ring-2 focus:ring-blue-500"
+                                                            required
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}

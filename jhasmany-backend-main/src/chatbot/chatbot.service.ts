@@ -42,6 +42,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
     private sessions = new Map<number, SessionState>();
 
     constructor(
+        @Inject(forwardRef(() => PacientesService))
         private readonly pacientesService: PacientesService,
         private readonly agendaService: AgendaService,
         private readonly pagosService: PagosService,

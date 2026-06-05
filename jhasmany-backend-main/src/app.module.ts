@@ -64,6 +64,7 @@ import { FirmaDigital } from './firmas/entities/firma-digital.entity';
 import { StorageModule } from './common/storage/storage.module';
 import { WhatsappSession } from './chatbot/entities/whatsapp-session.entity';
 import { FichaMedica } from './pacientes/entities/ficha_medica.entity';
+import { FichaMedicaDiagnostico } from './pacientes/entities/ficha_medica_diagnostico.entity';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PacienteTest } from './paciente-test/entities/paciente-test.entity';
 import { PacienteTestModule } from './paciente-test/paciente-test.module';
@@ -114,6 +115,7 @@ import { PacienteTestModule } from './paciente-test/paciente-test.module';
         FirmaDigital,
         WhatsappSession,
         FichaMedica,
+        FichaMedicaDiagnostico,
         PacienteTest,
       ],
     }),
