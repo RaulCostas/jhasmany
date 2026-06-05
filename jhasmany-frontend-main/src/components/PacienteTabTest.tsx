@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import { 
     ClipboardList, Send, Copy, Eye, Plus, X, 
-    ExternalLink, CheckCircle, Clock, Award, HelpCircle
+    ExternalLink, CheckCircle, Clock, Award, HelpCircle,
+    MessageCircle, Trash2
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
@@ -20,6 +21,21 @@ interface PacienteTest {
     respuestas: Record<string, number> | null;
     puntaje: number | null;
     resultado: string | null;
+    doctorId?: number | null;
+    doctor?: {
+        id: number;
+        nombre: string;
+        paterno: string;
+        materno?: string;
+    } | null;
+}
+
+interface Doctor {
+    id: number;
+    nombre: string;
+    paterno: string;
+    materno?: string;
+    estado: string;
 }
 
 const questions = [
@@ -52,6 +68,12 @@ const PacienteTabTest: React.FC = () => {
     const [selectedTest, setSelectedTest] = useState<PacienteTest | null>(null);
     const [copied, setCopied] = useState(false);
     const [showManual, setShowManual] = useState(false);
+
+    // Doctor selection state for WhatsApp sending
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [showDoctorModal, setShowDoctorModal] = useState(false);
+    const [selectedDoctorId, setSelectedDoctorId] = useState<number | ''>('');
+    const [testIdToWhatsApp, setTestIdToWhatsApp] = useState<number | null>(null);
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
@@ -92,8 +114,20 @@ const PacienteTabTest: React.FC = () => {
         }
     };
 
+    const fetchDoctors = async () => {
+        try {
+            const res = await api.get('/doctors?limit=1000');
+            const data = res.data.data || res.data;
+            const activeDoctors = (data || []).filter((d: any) => d.estado === 'activo');
+            setDoctors(activeDoctors);
+        } catch (error) {
+            console.error("Error fetching doctors:", error);
+        }
+    };
+
     useEffect(() => {
         fetchTests();
+        fetchDoctors();
     }, [id]);
 
     const handleGenerateTest = async () => {
@@ -148,6 +182,86 @@ const PacienteTabTest: React.FC = () => {
             .catch(err => {
                 console.error("Failed to copy link:", err);
             });
+    };
+
+    const handleDeleteTest = async (testId: number) => {
+        const result = await Swal.fire({
+            title: '¿Eliminar test?',
+            text: 'Se eliminará este enlace de test. Esta acción no se puede deshacer.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444',
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar'
+        });
+        if (!result.isConfirmed) return;
+        try {
+            await api.delete(`/paciente-test/${testId}`);
+            Swal.fire({
+                icon: 'success',
+                title: 'Eliminado',
+                text: 'El test ha sido eliminado correctamente.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+            fetchTests();
+        } catch (error: any) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'No se pudo eliminar el test.',
+                confirmButtonColor: '#ef4444'
+            });
+        }
+    };
+
+    const handleSendWhatsAppClick = (testId: number) => {
+        setTestIdToWhatsApp(testId);
+        setShowDoctorModal(true);
+        setSelectedDoctorId('');
+    };
+
+    const handleSendWhatsAppSubmit = async () => {
+        if (!testIdToWhatsApp || !selectedDoctorId) return;
+
+        try {
+            Swal.fire({
+                title: 'Enviando WhatsApp...',
+                text: 'Espere por favor',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            await api.post(`/paciente-test/${testIdToWhatsApp}/send-whatsapp`, {
+                doctorId: Number(selectedDoctorId),
+                frontendUrl: window.location.origin
+            });
+
+            Swal.fire({
+                icon: 'success',
+                title: '¡Enviado!',
+                text: 'El enlace del test se ha enviado al WhatsApp del paciente.',
+                timer: 3000,
+                showConfirmButton: false
+            });
+
+            setShowDoctorModal(false);
+            setTestIdToWhatsApp(null);
+            setSelectedDoctorId('');
+            fetchTests();
+        } catch (error: any) {
+            console.error("Error sending test WhatsApp:", error);
+            const msg = error.response?.data?.message || 'No se pudo enviar el enlace del test por WhatsApp.';
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: msg,
+                confirmButtonColor: '#ef4444'
+            });
+        }
     };
 
     const handleViewDetails = (test: PacienteTest) => {
@@ -236,7 +350,14 @@ const PacienteTabTest: React.FC = () => {
                                     const isCompletado = test.estado === 'completado';
                                     return (
                                         <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                                            <td className="px-4 py-3 text-sm font-semibold">{test.nombreTest}</td>
+                                            <td className="px-4 py-3 text-sm font-semibold">
+                                                <div>{test.nombreTest}</div>
+                                                {test.doctor && (
+                                                    <div className="text-[10px] text-gray-400 font-normal mt-0.5">
+                                                        Solicitado por: Dr. {test.doctor.nombre} {test.doctor.paterno}
+                                                    </div>
+                                                )}
+                                            </td>
                                             <td className="px-4 py-3 text-sm">
                                                 {new Date(test.fechaEnvio).toLocaleString('es-ES', {
                                                     day: '2-digit', month: '2-digit', year: 'numeric',
@@ -245,11 +366,13 @@ const PacienteTabTest: React.FC = () => {
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                                    isCompletado 
-                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' 
-                                                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                                    isCompletado
+                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                        : test.doctorId
+                                                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                                                            : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
                                                 }`}>
-                                                    {isCompletado ? 'Completado' : 'Enviado'}
+                                                    {isCompletado ? 'Completado' : test.doctorId ? 'Enviado' : 'Generado'}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-sm">
@@ -285,20 +408,34 @@ const PacienteTabTest: React.FC = () => {
                                                         <>
                                                             <button
                                                                 onClick={() => handleCopyLink(test.token)}
-                                                                className="bg-gray-500 hover:bg-gray-600 text-white hover:text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 text-xs active:scale-95 border border-transparent"
+                                                                className="bg-gray-500 hover:bg-gray-600 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 border border-transparent"
                                                                 title="Copiar Enlace"
                                                             >
-                                                                <Copy size={14} /> Copiar Link
+                                                                <Copy size={14} />
                                                             </button>
-                                                            <a
+                                                            <button
+                                                                onClick={() => handleSendWhatsAppClick(test.id)}
+                                                                className="bg-green-500 hover:bg-green-600 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 border border-transparent"
+                                                                title="Enviar por WhatsApp"
+                                                            >
+                                                                <MessageCircle size={14} />
+                                                            </button>
+                                                             <a
                                                                 href={getTestLink(test.token)}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="bg-emerald-600 hover:bg-emerald-700 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 hover:no-underline border border-transparent"
+                                                                className="bg-blue-600 hover:bg-blue-700 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 hover:no-underline border border-transparent"
                                                                 title="Abrir en pestaña nueva"
                                                             >
                                                                 <ExternalLink size={14} />
                                                             </a>
+                                                            <button
+                                                                onClick={() => handleDeleteTest(test.id)}
+                                                                className="bg-red-500 hover:bg-red-600 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 border border-transparent"
+                                                                title="Eliminar Test"
+                                                            >
+                                                                <Trash2 size={14} />
+                                                            </button>
                                                         </>
                                                     )}
                                                 </div>
@@ -359,6 +496,66 @@ const PacienteTabTest: React.FC = () => {
                             >
                                 <ExternalLink size={14} /> Probar Test
                             </a>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Doctor Selection Modal for WhatsApp */}
+            {showDoctorModal && (
+                <div className="fixed inset-0 bg-black/55 flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 md:p-8 max-w-md w-full shadow-2xl border border-gray-100 dark:border-gray-700 transform scale-100 transition-transform">
+                        <div className="flex justify-between items-start mb-4">
+                            <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                                <Send size={20} className="text-blue-500" />
+                                Enviar Test por WhatsApp
+                            </h3>
+                        </div>
+                        
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                            Seleccione el doctor que solicita realizar este test. Esto permitirá que el doctor reciba una notificación automática en su WhatsApp cuando el paciente termine de responder.
+                        </p>
+
+                        <div className="mb-6">
+                            <label className="block mb-2 font-bold text-sm text-gray-700 dark:text-gray-300">Doctor Solicitante:</label>
+                            <div className="relative">
+                                <select
+                                    value={selectedDoctorId}
+                                    onChange={(e) => setSelectedDoctorId(e.target.value ? Number(e.target.value) : '')}
+                                    className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all appearance-none"
+                                >
+                                    <option value="">-- Seleccione un Doctor --</option>
+                                    {doctors.map(d => (
+                                        <option key={d.id} value={d.id}>Dr. {d.nombre} {d.paterno} {d.materno || ''}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 border-t dark:border-gray-700 pt-5">
+                            <button
+                                onClick={() => {
+                                    setShowDoctorModal(false);
+                                    setTestIdToWhatsApp(null);
+                                    setSelectedDoctorId('');
+                                }}
+                                className="bg-gray-500 hover:bg-gray-600 text-white hover:text-white font-semibold py-2 px-4 text-xs rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center justify-center gap-1.5 border border-transparent"
+                            >
+                                <X size={14} />
+                                Cancelar
+                            </button>
+                            <button
+                                                                onClick={handleSendWhatsAppSubmit}
+                                                                disabled={!selectedDoctorId}
+                                                                className={`font-bold px-5 py-2 text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:scale-95 border border-transparent ${
+                                                                    selectedDoctorId 
+                                                                        ? 'bg-green-500 hover:bg-green-600 text-white hover:text-white cursor-pointer' 
+                                                                        : 'bg-gray-300 dark:bg-gray-700 text-gray-505 cursor-not-allowed'
+                                                                }`}
+                                                            >
+                                                                <MessageCircle size={14} />
+                                                                Enviar WhatsApp
+                            </button>
                         </div>
                     </div>
                 </div>

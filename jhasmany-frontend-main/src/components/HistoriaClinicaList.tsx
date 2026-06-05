@@ -11,19 +11,23 @@ interface HistoriaClinicaListProps {
     onViewTimeline?: () => void;
     onPrint?: () => void;
     onReminder?: (item: HistoriaClinica) => void;
+    onSignatureSuccess?: () => void;
 }
 
 import { formatDate } from '../utils/dateUtils';
 import ManualModal, { type ManualSection } from './ManualModal';
 import Pagination from './Pagination';
-import { Printer, PenTool, X, Calendar, Activity, MessageCircle } from 'lucide-react';
+import { Printer, PenTool, X, Calendar, Activity, MessageCircle, FileSignature, CheckCircle } from 'lucide-react';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
+import SignatureModal from './SignatureModal';
 
 
-const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onDelete, onEdit, onNewHistoria, onPrint, onViewPlan, onViewTimeline, onReminder }) => {
+const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onDelete, onEdit, onNewHistoria, onPrint, onViewPlan, onViewTimeline, onReminder, onSignatureSuccess }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [showManual, setShowManual] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [selectedReceta, setSelectedReceta] = useState<any | null>(null);
     const itemsPerPage = 5;
 
     const manualSections: ManualSection[] = [
@@ -239,15 +243,43 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                                         )}
                                         {item.receta && (
                                             <>
+                                                {item.receta.esta_firmado ? (
+                                                    <div className="p-1.5 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-900/30 rounded-lg text-xs font-bold flex items-center justify-center" title="Receta Firmada">
+                                                        <CheckCircle size={14} />
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            setSelectedReceta(item.receta);
+                                                            setShowSignatureModal(true);
+                                                        }}
+                                                        className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                        title="Firmar Receta"
+                                                    >
+                                                        <FileSignature size={14} />
+                                                    </button>
+                                                )}
                                                 <button
-                                                    onClick={() => handlePrintReceta(item.receta!, item.diagnosticos)}
+                                                    onClick={() => {
+                                                        const recetaConPaciente = {
+                                                            ...item.receta!,
+                                                            paciente: item.paciente
+                                                        };
+                                                        handlePrintReceta(recetaConPaciente as any, item.diagnosticos);
+                                                    }}
                                                     className="p-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                                                     title="Imprimir Receta"
                                                 >
                                                     <Printer size={14} />
                                                 </button>
                                                 <button
-                                                    onClick={() => handleWhatsAppReceta(item.receta!)}
+                                                    onClick={() => {
+                                                        const recetaConPaciente = {
+                                                            ...item.receta!,
+                                                            paciente: item.paciente
+                                                        };
+                                                        handleWhatsAppReceta(recetaConPaciente as any);
+                                                    }}
                                                     className="p-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
                                                     title="Enviar Receta por WhatsApp"
                                                 >
@@ -307,6 +339,22 @@ const HistoriaClinicaList: React.FC<HistoriaClinicaListProps> = ({ historia, onD
                 title="Manual de Usuario - Seguimiento Clínico"
                 sections={manualSections}
             />
+
+            {showSignatureModal && selectedReceta && (
+                <SignatureModal
+                    isOpen={showSignatureModal}
+                    onClose={() => {
+                        setShowSignatureModal(false);
+                        setSelectedReceta(null);
+                    }}
+                    tipoDocumento="receta"
+                    documentoId={selectedReceta.id}
+                    rolFirmante="doctor"
+                    onSuccess={() => {
+                        onSignatureSuccess?.();
+                    }}
+                />
+            )}
 
 
 

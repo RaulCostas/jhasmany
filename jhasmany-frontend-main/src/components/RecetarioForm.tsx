@@ -7,6 +7,7 @@ import { getLocalDateString } from '../utils/dateUtils';
 import { formatFullName } from '../utils/formatters';
 import SearchablePatientSelect from './SearchablePatientSelect';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
+import SignatureModal from './SignatureModal';
 
 
 
@@ -34,6 +35,30 @@ const viasAdministracion = [
 const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, pacienteId, onSaveSuccess }) => {
     const [presetPacienteName, setPresetPacienteName] = useState('');
     const [medicamentosCatalog, setMedicamentosCatalog] = useState<Medicamento[]>([]);
+    const [hasRegisteredSignature, setHasRegisteredSignature] = useState(false);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [estaFirmado, setEstaFirmado] = useState(false);
+
+    const checkRegisteredSignature = async (userIdToCheck: number) => {
+        if (!userIdToCheck) return;
+        try {
+            const response = await api.get(`/firmas/documento/usuario/${userIdToCheck}`);
+            const signatures = response.data;
+            if (signatures && signatures.length > 0) {
+                const latestSignature = signatures[signatures.length - 1];
+                setHasRegisteredSignature(true);
+                setSignaturePreview(latestSignature.firmaData);
+                setEstaFirmado(true);
+            } else {
+                setHasRegisteredSignature(false);
+                setSignaturePreview(null);
+                setEstaFirmado(false);
+            }
+        } catch (error) {
+            console.error('Error checking user signature:', error);
+        }
+    };
     
     const isEditing = Boolean(id);
     const localDate = getLocalDateString();
@@ -116,6 +141,9 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, paci
         if (isEditing) {
             fetchReceta();
         } else {
+            if (currentUserId) {
+                checkRegisteredSignature(currentUserId);
+            }
             setFormData(prev => ({
                 ...prev,
                 pacienteId: pacienteId ? Number(pacienteId) : 0,
@@ -144,6 +172,10 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, paci
                 fecha: data.fecha.split('T')[0],
                 detalles: data.detalles || []
             });
+            setEstaFirmado(Boolean(data.esta_firmado));
+            if (data.userId) {
+                checkRegisteredSignature(data.userId);
+            }
             if (!data.detalles || data.detalles.length === 0) {
                 addDetalle();
             }
@@ -214,7 +246,8 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, paci
 
         const payload = {
             ...formData,
-            detalles: validDetalles
+            detalles: validDetalles,
+            esta_firmado: estaFirmado
         };
 
         try {
@@ -420,6 +453,71 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, paci
                             </div>
                         </div>
 
+                        {/* Firma Digital de la Receta */}
+                        <div className="mt-6 border p-4 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                            <h3 className="font-bold text-lg text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                <span>✍️</span> Firma Digital de la Receta
+                            </h3>
+                            {hasRegisteredSignature ? (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white dark:bg-gray-700 border border-green-200 dark:border-green-800 rounded-xl shadow-sm">
+                                    <div className="flex items-center gap-4">
+                                        <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-800 w-[140px] h-[70px] flex items-center justify-center overflow-hidden">
+                                            <img src={signaturePreview || undefined} alt="Firma registrada" className="max-w-full max-h-full object-contain" />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                                                <span>✓</span> Firma digital registrada
+                                            </p>
+                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                Se aplicará automáticamente a esta receta.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4">
+                                        <label className="flex items-center gap-2 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={estaFirmado}
+                                                onChange={(e) => setEstaFirmado(e.target.checked)}
+                                                className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+                                            />
+                                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                                                Firmar receta al guardar
+                                            </span>
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowSignatureModal(true)}
+                                            className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            Actualizar Firma
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white dark:bg-gray-700 border border-yellow-200 dark:border-yellow-800/50 rounded-xl shadow-sm">
+                                    <div>
+                                        <p className="text-sm font-bold text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
+                                            <span>⚠️</span> No tienes una firma digital registrada
+                                        </p>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                            Registra tu firma para poder emitir recetas firmadas automáticamente.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowSignatureModal(true)}
+                                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center gap-2 text-sm shadow transition-all transform hover:-translate-y-0.5"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                        Registrar Firma Digital
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         {/* Footer Buttons */}
                         <div className="flex justify-start gap-3 mt-8 p-5 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 rounded-b-xl -mx-6 -mb-6">
                             <button
@@ -453,6 +551,17 @@ const RecetarioForm: React.FC<RecetarioFormProps> = ({ isOpen, onClose, id, paci
                         title="Manual de Usuario - Formulario de Receta"
                         sections={manualSections}
                     />
+
+                    {showSignatureModal && formData.userId > 0 && (
+                        <SignatureModal
+                            isOpen={showSignatureModal}
+                            onClose={() => setShowSignatureModal(false)}
+                            tipoDocumento="usuario"
+                            documentoId={formData.userId}
+                            rolFirmante="doctor"
+                            onSuccess={() => checkRegisteredSignature(formData.userId)}
+                        />
+                    )}
                 </div>
             </div>
         </div>

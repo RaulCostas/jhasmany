@@ -1,23 +1,28 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { formatDate } from '../utils/dateUtils';
 import { formatFullName } from '../utils/formatters';
-import { X, ClipboardList, User, Activity, FileText, Calendar, Printer, MessageCircle } from 'lucide-react';
+import { X, ClipboardList, User, Activity, FileText, Calendar, Printer, MessageCircle, FileSignature, CheckCircle } from 'lucide-react';
 import type { HistoriaClinica, Paciente } from '../types';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
+import SignatureModal from './SignatureModal';
 
 interface Props {
     isOpen: boolean;
     onClose: () => void;
     historia: HistoriaClinica[];
     paciente: Paciente | null;
+    onSignatureSuccess?: () => void;
 }
 
 const SeguimientoViewModal: React.FC<Props> = ({ 
     isOpen, 
     onClose, 
     historia, 
-    paciente
+    paciente,
+    onSignatureSuccess
 }) => {
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
+    const [selectedReceta, setSelectedReceta] = useState<any | null>(null);
     if (!isOpen) return null;
 
     // Sort by date descending
@@ -149,8 +154,32 @@ const SeguimientoViewModal: React.FC<Props> = ({
                                                     )}
                                                 </div>
                                                 <div className="flex items-center gap-2 self-end md:self-center">
+                                                    {item.receta.esta_firmado ? (
+                                                        <div className="flex items-center gap-1 px-3 py-1.5 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-900/30 rounded-lg text-xs font-bold">
+                                                            <CheckCircle size={14} />
+                                                            Firmado
+                                                        </div>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedReceta(item.receta);
+                                                                setShowSignatureModal(true);
+                                                            }}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                                            title="Firmar Receta"
+                                                        >
+                                                            <FileSignature size={14} />
+                                                            Firmar
+                                                        </button>
+                                                    )}
                                                     <button
-                                                        onClick={() => handlePrintReceta(item.receta!, item.diagnosticos)}
+                                                        onClick={() => {
+                                                            const recetaConPaciente = {
+                                                                ...item.receta!,
+                                                                paciente: paciente || item.paciente
+                                                            };
+                                                            handlePrintReceta(recetaConPaciente as any, item.diagnosticos);
+                                                        }}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
                                                         title="Imprimir Receta"
                                                     >
@@ -158,7 +187,13 @@ const SeguimientoViewModal: React.FC<Props> = ({
                                                         Imprimir
                                                     </button>
                                                     <button
-                                                        onClick={() => handleWhatsAppReceta(item.receta!)}
+                                                        onClick={() => {
+                                                            const recetaConPaciente = {
+                                                                ...item.receta!,
+                                                                paciente: paciente || item.paciente
+                                                            };
+                                                            handleWhatsAppReceta(recetaConPaciente as any);
+                                                        }}
                                                         className="flex items-center gap-1.5 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
                                                         title="Enviar por WhatsApp"
                                                     >
@@ -187,6 +222,22 @@ const SeguimientoViewModal: React.FC<Props> = ({
                     </button>
                 </div>
             </div>
+
+            {showSignatureModal && selectedReceta && (
+                <SignatureModal
+                    isOpen={showSignatureModal}
+                    onClose={() => {
+                        setShowSignatureModal(false);
+                        setSelectedReceta(null);
+                    }}
+                    tipoDocumento="receta"
+                    documentoId={selectedReceta.id}
+                    rolFirmante="doctor"
+                    onSuccess={() => {
+                        onSignatureSuccess?.();
+                    }}
+                />
+            )}
 
             <style>{`
                 .custom-scrollbar::-webkit-scrollbar {

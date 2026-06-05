@@ -563,6 +563,7 @@ export interface Receta {
     detalles?: RecetaDetalle[];
     esta_firmado?: boolean;
     historiaClinica?: HistoriaClinica;
+    fichaMedica?: any;
 }
 
 export interface RecetaDetalle {

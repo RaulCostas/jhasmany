@@ -5,12 +5,12 @@ import { ChatbotService } from './chatbot.service';
 export class ChatbotController {
     constructor(private readonly chatbotService: ChatbotService) { }
 
-    @Get('status')
+    @Get(['status', ':clinicId/status'])
     getStatus() {
         return this.chatbotService.getStatus();
     }
 
-    @Post('initialize')
+    @Post(['initialize', ':clinicId/initialize'])
     async initialize() {
         try {
             await this.chatbotService.initialize();
@@ -24,13 +24,13 @@ export class ChatbotController {
         }
     }
 
-    @Post('disconnect')
+    @Post(['disconnect', ':clinicId/disconnect'])
     async disconnect() {
         await this.chatbotService.disconnect();
         return { status: 'disconnected' };
     }
 
-    @Post('reset')
+    @Post(['reset', ':clinicId/reset'])
     async reset() {
         await this.chatbotService.resetSession();
         return { status: 'disconnected', message: 'Session reset successfully' };

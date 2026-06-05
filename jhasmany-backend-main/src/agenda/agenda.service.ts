@@ -69,7 +69,7 @@ export class AgendaService {
                 const nombrePaciente = p.nombre;
                 const nomClinica = 'JHASMANY';
 
-                const mensaje = `Hola *${nombrePaciente}*, ${nomClinica} te recuerda que tienes una cita mañana a las *${horaStr}*.\n\n📌 Hola, somos ${nomClinica}, por favor guarda nuestro número para recibir tus recordatorios.`;
+                const mensaje = `Hola ${nombrePaciente}, JHASMANY te recuerda que tienes una cita mañana a las ${horaStr}.`;
 
                 await this.chatbotService.sendAgendaMenu(
                     jid,

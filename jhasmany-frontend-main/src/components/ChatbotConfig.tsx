@@ -4,7 +4,7 @@ import api from '../services/api';
 import Swal from 'sweetalert2';
 
 
-import ChatbotIntentosConfig from './ChatbotIntentosConfig';
+
 import ManualModal, { type ManualSection } from './ManualModal';
 
 const ChatbotConfig: React.FC = () => {
@@ -16,7 +16,7 @@ const ChatbotConfig: React.FC = () => {
     const [connectingStartTime, setConnectingStartTime] = useState<number | null>(null);
     const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
 
-    const [activeTab, setActiveTab] = useState<'status' | 'intents'>('status');
+    const activeTab = 'status';
     const [showManual, setShowManual] = useState(false);
 
     const manualSections: ManualSection[] = [
@@ -27,10 +27,6 @@ const ChatbotConfig: React.FC = () => {
         {
             title: 'Estados de Conexión',
             content: 'El bot puede estar: Conectado (funcionando), Desconectado (inactivo) o Esperando QR (listo para vincular).'
-        },
-        {
-            title: 'Respuestas Automáticas',
-            content: 'En la pestaña "Respuestas Automáticas" puede definir palabras clave y las respuestas que el bot enviará.'
         }];
 
     const fetchStatus = async () => {
@@ -167,40 +163,11 @@ const ChatbotConfig: React.FC = () => {
                 </button>
             </div>
 
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 dark:border-gray-600 mb-6 bg-gray-50 dark:bg-gray-700/50 rounded-t-lg px-2 pt-2">
-                <button
-                    onClick={() => setActiveTab('status')}
-                    className={`flex items-center gap-2 px-5 py-3 text-base font-medium transition-colors border-b-4 rounded-t-lg outline-none focus:outline-none ${activeTab === 'status'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
-                        : 'border-transparent text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 hover:text-gray-800 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-500'
-                        }`}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                        <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                        <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                        <line x1="12" y1="20" x2="12.01" y2="20"></line>
-                    </svg>
-                    Estado y Conexión
-                </button>
-                <button
-                    onClick={() => setActiveTab('intents')}
-                    className={`flex items-center gap-2 px-5 py-3 text-base font-medium transition-colors border-b-4 rounded-t-lg outline-none focus:outline-none ${activeTab === 'intents'
-                        ? 'border-blue-500 text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800'
-                        : 'border-transparent text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-600 hover:text-gray-800 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-gray-500'
-                        }`}
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                    </svg>
-                    Respuestas Automáticas
-                </button>
-            </div>
+
 
 
             <div className="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-md min-h-[400px]">
-                {activeTab === 'status' ? (
+                {activeTab === 'status' && (
                     <div className="flex flex-col items-center justify-center h-full">
                         {status === 'connected' ? (
                             <div className="text-center text-green-600 dark:text-green-400 animate-in fade-in zoom-in duration-300">
@@ -349,8 +316,6 @@ const ChatbotConfig: React.FC = () => {
                             </div>
                         )}
                     </div>
-                ) : (
-                    <ChatbotIntentosConfig />
                 )}
             </div>
 

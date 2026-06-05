@@ -23,6 +23,7 @@ const TABS_PARTICULAR: TabDef[] = [
     { id: 'pagos',       label: 'Pagos',                icon: <FileText size={15} />,        path: 'pagos' },
     { id: 'recetario',   label: 'Recetario',            icon: <ClipboardList size={15} />,   path: 'recetario' },
     { id: 'test',        label: 'Tests',                icon: <HelpCircle size={15} />,      path: 'test' },
+    { id: 'imagenes',    label: 'Imágenes',             icon: <ImageIcon size={15} />,        path: 'imagenes' },
 ];
 
 const TABS_SEGURO: TabDef[] = [
@@ -89,7 +90,8 @@ const PacientePerfil: React.FC<PacientePerfilProps> = ({ tipo }) => {
                     'seguimiento': 'pacientes',
                     'pagos': 'pagos',
                     'recetario': 'recetario',
-                    'test': 'pacientes'
+                    'test': 'pacientes',
+                    'imagenes': 'pacientes'
                 };
 
                 setAllowedTabs(currentTabs.filter(tab => !restricted.includes(tabToModuleMap[tab.id])));

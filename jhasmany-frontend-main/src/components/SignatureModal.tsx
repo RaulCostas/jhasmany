@@ -7,7 +7,7 @@ import Swal from 'sweetalert2';
 interface SignatureModalProps {
   isOpen: boolean;
   onClose: () => void;
-  tipoDocumento: 'historia_clinica' | 'receta' | 'paciente';
+  tipoDocumento: 'historia_clinica' | 'receta' | 'paciente' | 'usuario';
   documentoId: number;
   rolFirmante: 'paciente' | 'doctor' | 'personal' | 'administrador';
   onSuccess?: () => void;

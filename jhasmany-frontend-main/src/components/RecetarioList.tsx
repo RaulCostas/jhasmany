@@ -12,7 +12,7 @@ import SignatureModal from './SignatureModal';
 import RecetarioForm from './RecetarioForm';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 
-import { ClipboardList, Printer } from 'lucide-react';
+import { ClipboardList, Printer, FileSignature, CheckCircle } from 'lucide-react';
 
 
 interface RecetarioListProps {
@@ -203,7 +203,12 @@ const RecetarioList: React.FC<RecetarioListProps> = ({ pacienteId: propPacienteI
                         {paginatedRecetas.map((receta, index) => (
                             <tr key={receta.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                 <td className="p-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{(currentPage - 1) * limit + index + 1}</td>
-                                <td className="p-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">{formatDate(receta.fecha)}</td>
+                                <td className="p-3 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                                    <div>{formatDate(receta.fecha)}</div>
+                                    <div className="text-[10px] font-medium text-blue-600 dark:text-blue-400 mt-1">
+                                        {receta.historiaClinica ? 'Seguimiento Clínico' : receta.fichaMedica ? 'Ficha Médica' : 'Recetario'}
+                                    </div>
+                                </td>
                                 {!pacienteId && (
                                     <td className="p-3 text-gray-700 dark:text-gray-300">
                                         {formatFullName(receta.paciente)}
@@ -219,6 +224,22 @@ const RecetarioList: React.FC<RecetarioListProps> = ({ pacienteId: propPacienteI
                                 </td>
 
                                 <td className="p-3 flex gap-2">
+                                    {receta.esta_firmado ? (
+                                        <div className="p-2 text-green-600 dark:text-green-400 font-bold flex items-center justify-center" title="Receta Firmada">
+                                            <CheckCircle size={20} />
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => {
+                                                setSelectedReceta(receta);
+                                                setShowSignatureModal(true);
+                                            }}
+                                            className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                            title="Firmar Receta"
+                                        >
+                                            <FileSignature size={20} />
+                                        </button>
+                                    )}
                                     <button
                                         onClick={() => handleWhatsAppReceta(receta)}
                                         className="p-2 bg-green-500 hover:bg-green-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"

@@ -1,9 +1,14 @@
-import React from 'react';
-import { Settings } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings, PenTool } from 'lucide-react';
+import SignatureModal from './SignatureModal';
+import Swal from 'sweetalert2';
 
 const Configuration: React.FC = () => {
-    const userPermisos = JSON.parse(localStorage.getItem('user') || '{}').permisos || [];
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userPermisos = user.permisos || [];
+    const userId = user.id;
     const hasAccess = (moduleId: string) => !userPermisos.includes(moduleId);
+    const [showFirmaModal, setShowFirmaModal] = useState(false);
 
     return (
         <div className="bg-white dark:bg-gray-800 shadow-xl rounded-2xl p-8 transition-colors duration-300">
@@ -59,6 +64,21 @@ const Configuration: React.FC = () => {
                         <p className="text-gray-600 dark:text-gray-400">Actualizar la contraseña de seguridad de su cuenta</p>
                     </div>
                 )}
+
+                {/* Mi Firma Digital */}
+                <div
+                    onClick={() => setShowFirmaModal(true)}
+                    className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-all cursor-pointer border-2 border-transparent hover:border-blue-500"
+                >
+                    <div className="flex items-center gap-4 mb-3">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                            <PenTool className="h-8 w-8 text-blue-600 dark:text-blue-300" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-800 dark:text-white">Mi Firma Digital</h3>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400">Registrar, actualizar o subir su firma digital para recetas médicas</p>
+                </div>
+
 
                 {/* 4. Comisión Tarjeta */}
                 {hasAccess('config-comision') && (
@@ -169,6 +189,26 @@ const Configuration: React.FC = () => {
                     </div>
                 )}
             </div>
+            {showFirmaModal && userId && (
+                <SignatureModal
+                    isOpen={showFirmaModal}
+                    onClose={() => setShowFirmaModal(false)}
+                    tipoDocumento="usuario"
+                    documentoId={userId}
+                    rolFirmante="doctor"
+                    onSuccess={() => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Firma Registrada',
+                            text: 'Su firma digital se ha registrado exitosamente.',
+                            timer: 1500,
+                            showConfirmButton: false,
+                            background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                            color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                        });
+                    }}
+                />
+            )}
         </div>
     );
 };

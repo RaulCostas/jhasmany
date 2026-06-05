@@ -44,7 +44,7 @@ import { FormaPago } from './forma_pago/entities/forma_pago.entity';
 
 import { ChatbotModule } from './chatbot/chatbot.module';
 
-import { ChatbotIntento } from './chatbot/entities/chatbot-intento.entity';
+
 
 
 import { UtilidadesModule } from './utilidades/utilidades.module';
@@ -68,6 +68,8 @@ import { FichaMedicaDiagnostico } from './pacientes/entities/ficha_medica_diagno
 import { DashboardModule } from './dashboard/dashboard.module';
 import { PacienteTest } from './paciente-test/entities/paciente-test.entity';
 import { PacienteTestModule } from './paciente-test/paciente-test.module';
+import { PacienteImagen } from './paciente-imagenes/entities/paciente-imagen.entity';
+import { PacienteImagenesModule } from './paciente-imagenes/paciente-imagenes.module';
 
 @Module({
   imports: [
@@ -105,7 +107,6 @@ import { PacienteTestModule } from './paciente-test/paciente-test.module';
 
         Correo,
         FormaPago,
-        ChatbotIntento,
         RecetaDetalle,
         Receta,
 
@@ -117,6 +118,7 @@ import { PacienteTestModule } from './paciente-test/paciente-test.module';
         FichaMedica,
         FichaMedicaDiagnostico,
         PacienteTest,
+        PacienteImagen,
       ],
     }),
     UsersModule,
@@ -150,6 +152,7 @@ import { PacienteTestModule } from './paciente-test/paciente-test.module';
     StorageModule,
     DashboardModule,
     PacienteTestModule,
+    PacienteImagenesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

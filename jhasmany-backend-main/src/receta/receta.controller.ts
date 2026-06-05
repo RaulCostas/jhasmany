@@ -77,6 +77,7 @@ export class RecetaController {
                 message: 'Receta enviada por WhatsApp exitosamente'
             };
         } catch (error) {
+            console.error('Error in sendWhatsApp:', error);
             if (error instanceof HttpException) {
                 throw error;
             }

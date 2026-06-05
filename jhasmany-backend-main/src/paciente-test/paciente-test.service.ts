@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as crypto from 'crypto';
 import { PacienteTest } from './entities/paciente-test.entity';
 import { Paciente } from '../pacientes/entities/paciente.entity';
+import { Doctor } from '../doctors/entities/doctor.entity';
+import { ChatbotService } from '../chatbot/chatbot.service';
 
 @Injectable()
 export class PacienteTestService {
@@ -12,10 +14,14 @@ export class PacienteTestService {
         private readonly testRepository: Repository<PacienteTest>,
         @InjectRepository(Paciente)
         private readonly pacienteRepository: Repository<Paciente>,
+        @InjectRepository(Doctor)
+        private readonly doctorRepository: Repository<Doctor>,
+        @Inject(forwardRef(() => ChatbotService))
+        private readonly chatbotService: ChatbotService,
     ) {}
 
     // 1. Create and send a new test (generates a secure token)
-    async create(pacienteId: number, nombreTest: string = 'Escala de Autoestima de Rosenberg'): Promise<PacienteTest> {
+    async create(pacienteId: number, doctorId?: number, nombreTest: string = 'Escala de Autoestima de Rosenberg'): Promise<PacienteTest> {
         const paciente = await this.pacienteRepository.findOneBy({ id: pacienteId });
         if (!paciente) {
             throw new NotFoundException('Paciente no encontrado');
@@ -25,6 +31,7 @@ export class PacienteTestService {
         
         const test = this.testRepository.create({
             pacienteId,
+            doctorId: doctorId || null,
             nombreTest,
             token,
             estado: 'enviado',
@@ -33,10 +40,61 @@ export class PacienteTestService {
         return this.testRepository.save(test);
     }
 
+    // Send test link via WhatsApp
+    async sendWhatsApp(testId: number, doctorId: number, frontendUrl: string) {
+        const test = await this.testRepository.findOne({
+            where: { id: testId },
+            relations: ['paciente'],
+        });
+
+        if (!test) {
+            throw new NotFoundException('Test no encontrado');
+        }
+
+        if (!test.paciente) {
+            throw new NotFoundException('Paciente no encontrado');
+        }
+
+        if (!test.paciente.telefono_celular) {
+            throw new BadRequestException('El paciente no tiene un número de celular registrado.');
+        }
+
+        const doctor = await this.doctorRepository.findOneBy({ id: doctorId });
+        if (!doctor) {
+            throw new NotFoundException('Doctor no encontrado');
+        }
+
+        // Associate doctor with this test
+        test.doctorId = doctorId;
+        await this.testRepository.save(test);
+
+        const chatbotStatus = this.chatbotService.getStatus();
+        if (chatbotStatus.status !== 'connected') {
+            throw new BadRequestException('El chatbot no está conectado. Por favor, conecte el chatbot primero.');
+        }
+
+        let phone = test.paciente.telefono_celular.replace(/\D/g, '');
+        if (phone.length === 9) {
+            phone = '51' + phone;
+        }
+        const jid = phone + '@s.whatsapp.net';
+
+        const link = `${frontendUrl}/test-publico/${test.token}`;
+        const message = `Estimado(a) *${test.paciente.nombre} ${test.paciente.paterno}*, el Dr. *${doctor.nombre} ${doctor.paterno}* le ha enviado la *Escala de Autoestima de Rosenberg* para que la complete de forma remota.\n\nPor favor, haga clic en el siguiente enlace para realizar el test:\n🔗 ${link}\n\nGracias por su colaboración.`;
+
+        await this.chatbotService.sendMessage(jid, message);
+
+        return {
+            success: true,
+            message: 'Enlace de test enviado por WhatsApp exitosamente'
+        };
+    }
+
     // 2. Find all tests for a specific patient
     async findByPaciente(pacienteId: number): Promise<PacienteTest[]> {
         return this.testRepository.find({
             where: { pacienteId },
+            relations: ['doctor'],
             order: { fechaEnvio: 'DESC' },
         });
     }
@@ -126,11 +184,49 @@ export class PacienteTestService {
 
         const savedTest = await this.testRepository.save(test);
 
+        // Notify Doctor via WhatsApp if associated
+        if (savedTest.doctorId) {
+            try {
+                const doctor = await this.doctorRepository.findOneBy({ id: savedTest.doctorId });
+                if (doctor && doctor.celular) {
+                    const chatbotStatus = this.chatbotService.getStatus();
+                    if (chatbotStatus.status === 'connected') {
+                        let docPhone = doctor.celular.replace(/\D/g, '');
+                        if (docPhone.length === 9) {
+                            docPhone = '51' + docPhone;
+                        }
+                        const docJid = docPhone + '@s.whatsapp.net';
+
+                        const patientName = `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim();
+                        const docMessage = `🔔 *Notificación de Test Completado*\n\nEl paciente *${patientName}* ha completado el test *${savedTest.nombreTest}*.\n\n*Resultado:* ${savedTest.resultado}\n*Puntaje:* ${savedTest.puntaje} / 30 pts.`;
+
+                        await this.chatbotService.sendMessage(docJid, docMessage);
+                        console.log(`[Chatbot] [PacienteTest] Notified Doctor ${doctor.id} about test completed by patient ${test.pacienteId}`);
+                    }
+                }
+            } catch (err) {
+                console.error('[PacienteTest] Error notifying doctor via WhatsApp:', err);
+            }
+        }
+
         return {
             success: true,
             score: savedTest.puntaje,
             result: savedTest.resultado,
             fechaCompletado: savedTest.fechaCompletado,
         };
+    }
+
+    // 5. Delete a test (only if not completed)
+    async remove(id: number): Promise<{ success: boolean; message: string }> {
+        const test = await this.testRepository.findOneBy({ id });
+        if (!test) {
+            throw new NotFoundException('Test no encontrado');
+        }
+        if (test.estado === 'completado') {
+            throw new BadRequestException('No se puede eliminar un test que ya ha sido completado.');
+        }
+        await this.testRepository.remove(test);
+        return { success: true, message: 'Test eliminado correctamente' };
     }
 }

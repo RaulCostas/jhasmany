@@ -17,6 +17,44 @@ const PacienteForm: React.FC = () => {
     const isEditing = !!id;
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [showManual, setShowManual] = useState(false);
+    const [hasRegisteredSignature, setHasRegisteredSignature] = useState(false);
+    const [signaturePreview, setSignaturePreview] = useState<string | null>(null);
+    const [showUserSignatureModal, setShowUserSignatureModal] = useState(false);
+    const [estaFirmado, setEstaFirmado] = useState(false);
+
+    const checkRegisteredSignature = async (userIdToCheck: number) => {
+        if (!userIdToCheck) return;
+        try {
+            const response = await api.get(`/firmas/documento/usuario/${userIdToCheck}`);
+            const signatures = response.data;
+            if (signatures && signatures.length > 0) {
+                const latestSignature = signatures[signatures.length - 1];
+                setHasRegisteredSignature(true);
+                setSignaturePreview(latestSignature.firmaData);
+                setEstaFirmado(true);
+            } else {
+                setHasRegisteredSignature(false);
+                setSignaturePreview(null);
+                setEstaFirmado(false);
+            }
+        } catch (error) {
+            console.error('Error checking user signature:', error);
+        }
+    };
+
+    useEffect(() => {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                if (user.id) {
+                    checkRegisteredSignature(user.id);
+                }
+            } catch (e) {
+                console.error("Error parsing user", e);
+            }
+        }
+    }, []);
 
     // New state for phone country code
     const [countryCode, setCountryCode] = useState('+51');
@@ -369,6 +407,7 @@ const PacienteForm: React.FC = () => {
             if (flatData.receta) {
                 setEmitirReceta(true);
                 setRecetaDetalles(flatData.receta.detalles || []);
+                setEstaFirmado(Boolean(flatData.receta.esta_firmado));
             } else {
                 setEmitirReceta(false);
                 setRecetaDetalles([{
@@ -518,7 +557,10 @@ const PacienteForm: React.FC = () => {
                 });
                 return;
             }
-            payload.receta = { detalles: validRecetaDetalles };
+            payload.receta = { 
+                detalles: validRecetaDetalles,
+                esta_firmado: estaFirmado
+            };
         } else {
             payload.receta = { detalles: [] };
         }
@@ -1890,6 +1932,71 @@ const PacienteForm: React.FC = () => {
                                             </div>
                                         ))}
                                     </div>
+                                    
+                                    {/* Firma Digital de la Receta */}
+                                    <div className="mt-6 border p-4 rounded-xl border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                                        <h3 className="font-bold text-sm text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                                            <span>✍️</span> Firma Digital de la Receta
+                                        </h3>
+                                        {hasRegisteredSignature ? (
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white dark:bg-gray-700 border border-green-200 dark:border-green-800 rounded-xl shadow-sm">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-800 w-[140px] h-[70px] flex items-center justify-center overflow-hidden">
+                                                        <img src={signaturePreview || undefined} alt="Firma registrada" className="max-w-full max-h-full object-contain" />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-green-600 dark:text-green-400 flex items-center gap-1.5">
+                                                            <span>✓</span> Firma digital registrada
+                                                        </p>
+                                                        <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                            Se aplicará automáticamente a esta receta.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-4">
+                                                    <label className="flex items-center gap-2 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={estaFirmado}
+                                                            onChange={(e) => setEstaFirmado(e.target.checked)}
+                                                            className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600"
+                                                        />
+                                                        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                                                            Firmar receta al guardar
+                                                        </span>
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowUserSignatureModal(true)}
+                                                        className="px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 rounded-lg text-[10px] font-bold transition-colors"
+                                                    >
+                                                        Actualizar Firma
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-white dark:bg-gray-700 border border-yellow-200 dark:border-yellow-800/50 rounded-xl shadow-sm">
+                                                <div>
+                                                    <p className="text-xs font-bold text-yellow-600 dark:text-yellow-400 flex items-center gap-1.5">
+                                                        <span>⚠️</span> No tienes una firma digital registrada
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
+                                                        Registra tu firma para poder emitir recetas firmadas automáticamente.
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowUserSignatureModal(true)}
+                                                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl flex items-center gap-2 text-xs shadow transition-all transform hover:-translate-y-0.5"
+                                                >
+                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                    </svg>
+                                                    Registrar Firma Digital
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -1934,6 +2041,29 @@ const PacienteForm: React.FC = () => {
                 title="Ayuda"
                 sections={manualSections}
             />
+
+            {showUserSignatureModal && (
+                <SignatureModal
+                    isOpen={showUserSignatureModal}
+                    onClose={() => setShowUserSignatureModal(false)}
+                    tipoDocumento="usuario"
+                    documentoId={JSON.parse(localStorage.getItem('user') || '{}').id}
+                    rolFirmante="doctor"
+                    onSuccess={() => {
+                        const userStr = localStorage.getItem('user');
+                        if (userStr) {
+                            try {
+                                const user = JSON.parse(userStr);
+                                if (user.id) {
+                                    checkRegisteredSignature(user.id);
+                                }
+                            } catch (e) {
+                                console.error("Error parsing user", e);
+                            }
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 };

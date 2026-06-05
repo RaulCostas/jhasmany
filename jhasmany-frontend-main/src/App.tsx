@@ -31,6 +31,7 @@ import PacienteTabFicha from './components/PacienteTabFicha';
 import PacienteTabCitas from './components/PacienteTabCitas';
 import PacienteTabPagos from './components/PacienteTabPagos';
 import PacienteTabTest from './components/PacienteTabTest';
+import PacienteTabImagenes from './components/PacienteTabImagenes';
 import TestPublico from './components/TestPublico';
 
 
@@ -115,6 +116,7 @@ function App() {
                                             <Route path="pagos" element={<PacienteTabPagos tipo="particular" />} />
                                             <Route path="recetario" element={<RecetarioList />} />
                                             <Route path="test" element={<PacienteTabTest />} />
+                                            <Route path="imagenes" element={<PacienteTabImagenes />} />
                                         </Route>
 
                                         <Route path="/pacientes/:id/historia-clinica" element={<HistoriaClinica />} />

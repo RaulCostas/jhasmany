@@ -9,12 +9,7 @@ import * as QRCode from 'qrcode';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PacientesService } from '../pacientes/pacientes.service';
-import { DoctorsService } from '../doctors/doctors.service';
 import { AgendaService } from '../agenda/agenda.service';
-import { PagosService } from '../pagos/pagos.service';
-import { HistoriaClinicaService } from '../historia_clinica/historia_clinica.service';
-import { ChatbotIntentosService } from './chatbot-intentos.service';
-import { ChatbotIntento } from './entities/chatbot-intento.entity';
 import { WhatsappSession } from './entities/whatsapp-session.entity';
 import pino from 'pino';
 import * as fs from 'fs';
@@ -45,10 +40,6 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         @Inject(forwardRef(() => PacientesService))
         private readonly pacientesService: PacientesService,
         private readonly agendaService: AgendaService,
-        private readonly pagosService: PagosService,
-        private readonly historiaClinicaService: HistoriaClinicaService,
-        private readonly intentosService: ChatbotIntentosService,
-        private readonly doctorsService: DoctorsService,
         @InjectRepository(WhatsappSession)
         private readonly whatsappSessionRepository: Repository<WhatsappSession>,
     ) { }
@@ -452,290 +443,11 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         // ─── PRIORIDAD 2: Detener si es un grupo ──────────────────────────────────
         if (isGroup) return;
 
-        // ─── PRIORIDAD 3: Intents y lógica regular ────────────────────────────────
-        const intents = await this.intentosService.findAllActive();
-        let matchedIntent: ChatbotIntento | null = null;
 
-        let bestMatchKeyword = '';
-
-        for (const intent of intents) {
-            const keywords = intent.keywords.toLowerCase().split(',').map(k => k.trim());
-            const matchedKeyword = keywords.find(k => {
-                const safeK = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                const regex = new RegExp(`\\b${safeK}\\b`, 'i');
-                return regex.test(normalizedText);
-            });
-
-            if (matchedKeyword && matchedKeyword.length > bestMatchKeyword.length) {
-                bestMatchKeyword = matchedKeyword;
-                matchedIntent = intent;
-            }
-        }
-
-        let actor: any = null;
-        let isDoctor = false;
-
-        const phoneVariations = [
-            phone,
-            phone.startsWith('51') ? phone.substring(2) : '51' + phone,
-            '+' + phone,
-            phone.startsWith('51') ? '+' + phone : '+51' + phone
-        ];
-
-        if (matchedIntent?.target === 'USUARIO') {
-            for (const p of phoneVariations) {
-                actor = await this.doctorsService.findByCelular(p);
-                if (actor) { isDoctor = true; break; }
-            }
-            if (!actor) {
-                await this.sendMessage(remoteJid, 'Lo siento, esta función está reservada para el personal de la clínica.');
-                return;
-            }
-        } else {
-            for (const p of phoneVariations) {
-                actor = await this.pacientesService.findByCelular(p);
-                if (actor) break;
-            }
-        }
-
-        const menuSession = session.userSessions.get(remoteJid);
-        const options = ['a', 'b', '1', '2', '3'];
-        const isOption = options.includes(normalizedText);
-
-        if (isOption && menuSession && (menuSession.type === 'new' || menuSession.type === 'registered')) {
-            if (Date.now() - menuSession.timestamp < 300000) {
-                await this.handleMenuOption(remoteJid, normalizedText, actor, menuSession.type as 'new' | 'registered');
-                return;
-            } else {
-                session.userSessions.delete(remoteJid);
-            }
-        }
-
-        if (matchedIntent) {
-            try {
-                switch (matchedIntent.action) {
-                    case 'MENU_PRINCIPAL' as any:
-                        await this.sendMenu(remoteJid, actor);
-                        break;
-                    case 'CONSULTAR_SALDO':
-                        if (!isDoctor) {
-                            const detailedReport = await this.calculateDetailedSaldo(actor.id);
-                            await this.sendMessage(remoteJid, `Hola ${actor.nombre}, aquí está su estado de cuenta:\n\n${detailedReport}`);
-                        }
-                        break;
-                    case 'CONSULTAR_CITA':
-                        if (isDoctor) {
-                            await this.checkDoctorAppointments(actor, remoteJid);
-                        } else {
-                            await this.checkAppointments(actor, remoteJid);
-                        }
-                        break;
-                    case 'CONSULTAR_CITA_HOY':
-                        if (isDoctor) {
-                            await this.checkDoctorAppointmentsToday(actor, remoteJid);
-                        }
-                        break;
-                    case 'TEXTO_LIBRE':
-                        if (matchedIntent.replyTemplate) {
-                            await this.sendMessage(remoteJid, matchedIntent.replyTemplate);
-                        }
-                        break;
-
-                    case 'CONSULTAR_DIRECCION':
-                        await this.sendMessage(remoteJid, `Nos encontramos en: la Av. Principal #123`);
-                        break;
-                    case 'CONSULTAR_HORARIO':
-                        await this.sendMessage(remoteJid, `Nuestro horario de atención es de Lunes a Viernes de 8:00 a 18:00.`);
-                        break;
-                    case 'CONSULTAR_INVENTARIO' as any:
-                        await this.sendMessage(remoteJid, 'La consulta de inventario no está habilitada.');
-                        break;
-                }
-            } catch (error) {
-                await this.sendMessage(remoteJid, 'Lo siento, ocurrió un error al procesar tu solicitud.');
-            }
-        } else {
-            if (actor && !isDoctor && (normalizedText.includes('cita') || normalizedText.includes('cuando') || normalizedText.includes('agend'))) {
-                await this.checkAppointments(actor, remoteJid);
-            }
-        }
     }
 
 
-    async sendMenu(remoteJid: string, actor: any) {
-        const session = this.getSession();
-        let menuType: 'new' | 'registered' = actor ? 'registered' : 'new';
-        let message = '';
 
-        const clinicaNombre = 'JHASMANY';
-
-        if (menuType === 'new') {
-            message = `¡Hola! Bienvenido a nuestra Clínica ${clinicaNombre}. ¿En qué podemos ayudarte?\n\n` +
-                `*Menu:*\n` +
-                `*A* ¿Donde queda la Clínica?\n` +
-                `*B* ¿Cual es el horario de atención?\n\n` +
-                `Por favor, responde con la letra de la opción que desees.`;
-        } else {
-            message = `¡Hola ${actor.nombre}! Bienvenido de nuevo. ¿En qué podemos ayudarte hoy?\n\n` +
-                `*Menu Principal:*\n` +
-                `*1* Consultar Citas\n` +
-                `*2* Consultar mi Saldo\n\n` +
-                `Por favor, responde con el número de la opción que desees.`;
-        }
-
-        await this.sendMessage(remoteJid, message);
-        session.userSessions.set(remoteJid, { type: menuType, timestamp: Date.now() });
-    }
-
-    async handleMenuOption(remoteJid: string, option: string, actor: any, type: 'new' | 'registered') {
-        const session = this.getSession();
-        const opt = option.toUpperCase();
-
-        switch (opt) {
-            case 'A':
-                await this.sendMessage(remoteJid, `Nos encontramos en: la Av. Principal #123`);
-                break;
-            case 'B':
-                await this.sendMessage(remoteJid, `Nuestro horario de atención es de Lunes a Viernes de 8:00 a 18:00.`);
-                break;
-            case '1':
-                if (type === 'registered') {
-                    await this.checkAppointments(actor, remoteJid);
-                } else {
-                    await this.sendMessage(remoteJid, "Esta opción es solo para pacientes registrados.");
-                }
-                break;
-            case '2':
-                if (type === 'registered') {
-                    const detailedReport = await this.calculateDetailedSaldo(actor.id);
-                    await this.sendMessage(remoteJid, `Hola ${actor.nombre}, aquí está su estado de cuenta:\n\n${detailedReport}`);
-                } else {
-                    await this.sendMessage(remoteJid, "Esta opción es solo para pacientes registrados.");
-                }
-                break;
-            default:
-                await this.sendMessage(remoteJid, "Opción no válida. Por favor, selecciona una de las opciones del menú.");
-                break;
-        }
-
-        session.userSessions.set(remoteJid, { type, timestamp: Date.now() });
-    }
-
-    async calculateDetailedSaldo(pacienteId: number): Promise<string> {
-        const historia = await this.historiaClinicaService.findAllByPaciente(pacienteId);
-        const pagos = await this.pagosService.findAllByPaciente(pacienteId);
-
-        const totalEjecutado = 0;
-
-        const totalPagado = pagos.reduce((acc, curr) => acc + Number(curr.monto || 0), 0);
-        const diff = totalEjecutado - totalPagado;
-        const saldoFavor = diff < 0 ? Math.abs(diff) : 0;
-        const saldoContra = diff > 0 ? diff : 0;
-
-        return `Estado de Cuenta General
-- Total Tratamientos Terminados: ${totalEjecutado} S/.
-- Total Pagado: ${totalPagado} S/.
-- Saldo a Favor: ${saldoFavor} S/.
-- Saldo en Contra: ${saldoContra} S/.`;
-    }
-
-    async checkAppointments(paciente: any, remoteJid: string) {
-        const appointments = await this.agendaService.findAllByPaciente(paciente.id);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const futureAppointments = appointments.filter(a => {
-            const [year, month, day] = a.fecha.toString().split('-').map(Number);
-            const appDateObj = new Date(year, month - 1, day);
-            return appDateObj >= today;
-        });
-
-        if (futureAppointments.length > 0) {
-            const replies = futureAppointments.map(app => {
-                // Format time to HH:mm (remove seconds)
-                const timeParts = app.hora.split(':');
-                const timeFormatted = timeParts.length >= 2 ? `${timeParts[0]}:${timeParts[1]}` : app.hora;
-                return `- ${app.fecha} a las ${timeFormatted}`;
-            });
-
-            const reply = `Hola ${paciente.nombre}, tienes las siguientes citas programadas:\n${replies.join('\n')}`;
-            await this.sendMessage(remoteJid, reply);
-        } else {
-            const reply = `Hola ${paciente.nombre}, no encontré citas futuras agendadas.`;
-            await this.sendMessage(remoteJid, reply);
-        }
-    }
-
-    async checkDoctorAppointments(doctor: any, remoteJid: string) {
-        // We reuse agendaService but need a method for Doctor?
-        // Actually agendaService usually finds by Patient. We probably need findAllByDoctor in AgendaService.
-        // If it doesn't exist, we must add it. For now, assuming I might need to add it or do a raw query.
-        // Checking AgendaService... I don't recall seeing findAllByDoctor.
-        // Let's assume I need to fetch all and filter, or add the method.
-        // Ideally, I should add findAllByDoctor to AgendaService.
-        // BUT, to save time/risk, I can check if AgendaService has a generic find.
-        // Let's pause and check AgendaService. If I implement it here blindly it might fail.
-        // For this step I will implement specific logic if I can, or use a query builder here if possible (but service separation is better).
-        // Let's try to trust AgendaService has something or I add it.
-        // Re-reading task: "Fetch weekly appointments for that doctor".
-
-        // Let's implement this method assuming I'll add `findAllByDoctor` to AgendaService in next step if generic one fails.
-        // Actually, to make this robust, I'll modify AgendaService first to support `findAllByDoctor`.
-        // So for now I will leave this placeholder or partial implementation.
-
-        // Wait, I can inject the repository if I really want to bypass, but better practice is to use AgendaService.
-        // I'll assume AgendaService needs `findAllByDoctor`.
-        // Let's write the call here and then implement it in AgendaService.
-        const appointments = await this.agendaService.findAllByDoctor(doctor.id);
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const nextWeek = new Date(today);
-        nextWeek.setDate(today.getDate() + 7);
-
-        const weeklyAppointments = appointments.filter(a => {
-            const [year, month, day] = a.fecha.toString().split('-').map(Number);
-            const appDateObj = new Date(year, month - 1, day);
-            return appDateObj >= today && appDateObj <= nextWeek;
-        });
-
-        if (weeklyAppointments.length > 0) {
-            const replies = weeklyAppointments.map(app => {
-                const timeParts = app.hora.split(':');
-                const timeFormatted = timeParts.length >= 2 ? `${timeParts[0]}:${timeParts[1]}` : app.hora;
-                const pacienteName = app.paciente ? `${app.paciente.nombre} ${app.paciente.paterno}` : 'Paciente sin nombre';
-                return `📅 ${app.fecha} 🕒 ${timeFormatted}\n👤 ${pacienteName}\n🏥 ${'JHASMANY'}\n📝 ${app.observaciones || 'Consulta'}`;
-            });
-            const reply = `Dr. ${doctor.paterno}, sus citas para esta semana:\n\n${replies.join('\n\n')}`;
-            await this.sendMessage(remoteJid, reply);
-        } else {
-            await this.sendMessage(remoteJid, `Dr. ${doctor.paterno}, no tiene citas programadas para esta semana.`);
-        }
-    }
-
-    async checkDoctorAppointmentsToday(doctor: any, remoteJid: string) {
-        const appointments = await this.agendaService.findAllByDoctor(doctor.id);
-
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const todayStr = `${year}-${month}-${day}`;
-
-        const todayAppointments = appointments.filter(a => a.fecha === todayStr && a.estado === 'confirmado');
-
-        if (todayAppointments.length > 0) {
-            const replies = todayAppointments.map(app => {
-                const timeParts = app.hora.split(':');
-                const timeFormatted = timeParts.length >= 2 ? `${timeParts[0]}:${timeParts[1]}` : app.hora;
-                const pacienteName = app.paciente ? `${app.paciente.nombre} ${app.paciente.paterno}` : 'Paciente sin nombre';
-                return `📅 ${app.fecha} 🕒 ${timeFormatted}\n👤 ${pacienteName}\n🏥 ${'JHASMANY'}\n📝 ${app.observaciones || 'Consulta'}`;
-            });
-            const reply = `Dr. ${doctor.paterno}, sus citas para HOY:\n\n${replies.join('\n\n')}`;
-            await this.sendMessage(remoteJid, reply);
-        }
-    }
 
     async sendBirthdayGreeting(pacienteId: number) {
         const paciente = await this.pacientesService.findOne(pacienteId);
@@ -758,8 +470,8 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         }
         const jid = `${celular}@s.whatsapp.net`;
         
-        const clinicaText = 'JHASMANY';
-        const text = `¡Hola ${paciente.nombre} ${paciente.paterno}! 🎉 En nombre de todo el equipo de ${clinicaText}, te deseamos un muy feliz cumpleaños. ¡Que tengas un excelente día! 🎂🎈\n\n📌 Hola, somos ${clinicaText}, por favor guarda nuestro número para recibir tus felicitaciones y recordatorios.`;
+        const maternoText = paciente.materno ? ` ${paciente.materno}` : '';
+        const text = `¡Hola ${paciente.nombre} ${paciente.paterno}${maternoText}! 🎉 En nombre de tu Dr. Jhasmany Ojeda Cardona, te deseo un muy feliz cumpleaños. ¡Que tengas un excelente día! 🎂🎈\n\n📌 Hola, por favor guarda mi número para recibir tus felicitaciones y recordatorios.`;
 
         await this.sendMessage(jid, text);
 
@@ -840,7 +552,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
      */
     async sendAgendaMenu(jid: string, mensajeIntro: string, citaId: number): Promise<void> {
         const session = this.getSession();
-        const menuTexto = `${mensajeIntro}\n\nPor favor responde con:\n*A* ✅ Confirmar Cita\n*B* ❌ Cancelar Cita`;
+        const menuTexto = `${mensajeIntro}\n\nPor favor responde con una Letra:\nA ✅ Confirmar Cita \nB ❌ Cancelar Cita\n\n📌 Por favor guarda mi número para recibir tus felicitaciones y recordatorios.`;
         await this.sendMessage(jid, menuTexto);
         session.userSessions.set(jid, {
             type: 'waiting_agenda_response' as any,
@@ -899,7 +611,5 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         console.log(`[Chatbot] Deleted database sessions for JHASMANY`);
     }
 
-    private async handleConsultarInventario(remoteJid: string, text: string) {
-        await this.sendMessage(remoteJid, 'La consulta de inventario no está habilitada.');
-    }
+
 }

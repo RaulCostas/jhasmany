@@ -1,11 +1,64 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { FirmasService } from '../firmas/firmas.service';
+import * as fs from 'fs';
+import * as path from 'path';
+import axios from 'axios';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PdfPrinter = require('pdfmake');
 
 @Injectable()
 export class RecetaPdfService {
     private printer: any;
+
+    private async getPdfImageSource(imagePathOrUrl: string): Promise<string> {
+        if (!imagePathOrUrl) return '';
+
+        if (imagePathOrUrl.startsWith('data:image')) {
+            return imagePathOrUrl;
+        }
+
+        if (imagePathOrUrl.includes('/uploads/')) {
+            try {
+                const uploadsIdx = imagePathOrUrl.indexOf('uploads/');
+                const relativePath = imagePathOrUrl.substring(uploadsIdx);
+                let absolutePath = path.resolve(process.cwd(), relativePath);
+                
+                if (!fs.existsSync(absolutePath)) {
+                    // Try resolving relative to __dirname which is src/receta
+                    absolutePath = path.resolve(__dirname, '../../', relativePath);
+                }
+
+                if (fs.existsSync(absolutePath)) {
+                    const fileBuffer = fs.readFileSync(absolutePath);
+                    const ext = path.extname(absolutePath).toLowerCase();
+                    const mimeType = ext === '.png' ? 'image/png' : 'image/jpeg';
+                    return `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+                }
+            } catch (err) {
+                console.error('[getPdfImageSource] Error reading local upload file:', err.message);
+            }
+        }
+
+        if (imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://')) {
+            try {
+                const response = await axios.get(imagePathOrUrl, { responseType: 'arraybuffer' });
+                const contentType = response.headers['content-type'] || 'image/png';
+                const base64Image = Buffer.from(response.data, 'binary').toString('base64');
+                return `data:${contentType};base64,${base64Image}`;
+            } catch (err) {
+                console.error('[getPdfImageSource] Error fetching remote image:', err.message);
+            }
+        }
+
+        // If it is a URL and we failed to resolve or fetch it, return a 1x1 transparent PNG base64
+        // to prevent pdfmake from throwing a fatal "Image not a valid image, path or base64" error.
+        if (imagePathOrUrl.startsWith('http://') || imagePathOrUrl.startsWith('https://')) {
+            console.warn('[getPdfImageSource] Returning transparent 1x1 fallback to prevent pdfmake crash.');
+            return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+        }
+
+        return imagePathOrUrl;
+    }
 
     constructor(
         @Inject(forwardRef(() => FirmasService))
@@ -26,19 +79,33 @@ export class RecetaPdfService {
     async generateRecetaPdf(receta: any): Promise<Buffer> {
         // Fetch signatures
         const signatures = await this.firmasService.findByDocumento('receta', receta.id);
-        const doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+        let doctorSignature = signatures.find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+
+        if (!doctorSignature && receta.esta_firmado) {
+            const userId = receta.userId || receta.user?.id;
+            if (userId) {
+                const userSignatures = await this.firmasService.findByDocumento('usuario', userId);
+                doctorSignature = [...userSignatures].reverse().find(s => s.rolFirmante === 'doctor' || s.rolFirmante === 'personal' || s.rolFirmante === 'administrador');
+            }
+        }
+
+        let signatureImageSrc = '';
+        if (doctorSignature && doctorSignature.firmaData) {
+            signatureImageSrc = await this.getPdfImageSource(doctorSignature.firmaData);
+        }
 
         return new Promise((resolve, reject) => {
             const content: any[] = [];
 
-            // Header with Title
+            // Header with Doctor details
             content.push({
-                text: 'RECETA MÉDICA',
-                fontSize: 24,
-                bold: true,
-                color: '#2c3e50',
-                alignment: 'center',
-                margin: [0, 0, 0, 20]
+                stack: [
+                    { text: 'Dr. Jhasmany Ricardo Ojeda Cardona', fontSize: 18, bold: true, color: '#2c3e50' },
+                    { text: 'Médico Cirujano - Ocupacional', fontSize: 12, color: '#7f8c8d', margin: [0, 2, 0, 0] },
+                    { text: 'CMP: 86653     RNA: A09485', fontSize: 10, color: '#95a5a6', margin: [0, 2, 0, 0] }
+                ],
+                alignment: 'left',
+                margin: [0, 0, 0, 10]
             });
 
             // Blue separator line (Header bottom border)
@@ -49,47 +116,98 @@ export class RecetaPdfService {
                 margin: [0, 0, 0, 20]
             });
 
+            // RECETA MÉDICA Title
+            content.push({
+                text: 'RECETA MÉDICA',
+                fontSize: 20,
+                bold: true,
+                color: '#2c3e50',
+                alignment: 'center',
+                characterSpacing: 2,
+                margin: [0, 10, 0, 20]
+            });
 
             // Patient Info Box
             // Style: bg #f8f9fa, border-left 4px solid #3498db, padding 15px
-            const patientName = receta.paciente
-                ? `${receta.paciente.nombre} ${receta.paciente.paterno} ${receta.paciente.materno || ''}`.trim()
-                : 'N/A';
-            const doctorName = receta.user ? receta.user.name : 'N/A';
+            const patientName = this.formatFullName(receta.paciente);
             const dateStr = this.formatDate(receta.fecha);
+            const dniStr = receta.paciente?.dni || 'No especificado';
+            const edadStr = this.calcularEdad(receta.paciente?.fecha_nacimiento);
+            const generoStr = this.formatGenero(receta.paciente?.genero);
 
             const infoStackChildren: any[] = [
                 {
-                    text: [
-                        { text: 'PACIENTE: ', bold: true, color: '#2c3e50', fontSize: 10 },
-                        { text: patientName, color: '#333333', fontSize: 10 }
+                    columns: [
+                        {
+                            text: [
+                                { text: 'PACIENTE: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                                { text: patientName, color: '#333333', fontSize: 10 }
+                            ],
+                            width: '55%'
+                        },
+                        {
+                            text: [
+                                { text: 'FECHA: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                                { text: dateStr, color: '#333333', fontSize: 10 }
+                            ],
+                            width: '45%'
+                        }
                     ],
-                    margin: [0, 0, 0, 5]
+                    margin: [0, 0, 0, 8]
                 },
                 {
-                    text: [
-                        { text: 'FECHA: ', bold: true, color: '#2c3e50', fontSize: 10 },
-                        { text: dateStr, color: '#333333', fontSize: 10 }
+                    columns: [
+                        {
+                            text: [
+                                { text: 'DNI: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                                { text: dniStr, color: '#333333', fontSize: 10 }
+                            ],
+                            width: '55%'
+                        },
+                        {
+                            text: [
+                                { text: 'EDAD: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                                { text: edadStr, color: '#333333', fontSize: 10 },
+                                { text: '      ' },
+                                { text: 'SEXO: ', bold: true, color: '#2c3e50', fontSize: 10 },
+                                { text: generoStr, color: '#333333', fontSize: 10 }
+                            ],
+                            width: '45%'
+                        }
                     ]
                 }
             ];
 
             const listDiags = receta.historiaClinica?.diagnosticos || receta.fichaMedica?.diagnosticos || [];
             if (listDiags && listDiags.length > 0) {
+                // Separator line before diagnostics
                 infoStackChildren.push({
-                    text: 'DIAGNÓSTICOS:',
+                    canvas: [
+                        { type: 'line', x1: 0, y1: 0, x2: 475, y2: 0, lineWidth: 0.5, lineColor: '#dddddd' }
+                    ],
+                    margin: [0, 10, 0, 10]
+                });
+
+                const diagsList: any[] = [];
+                diagsList.push({
+                    text: 'DIAGNÓSTICO(S):',
                     bold: true,
                     color: '#2c3e50',
-                    fontSize: 9,
-                    margin: [0, 10, 0, 2]
+                    fontSize: 10,
+                    margin: [0, 0, 0, 4]
                 });
+
                 listDiags.forEach((d: any) => {
-                    infoStackChildren.push({
+                    diagsList.push({
                         text: `• ${d.diagnostico} (${d.tipo})`,
-                        color: '#555555',
+                        color: '#333333',
                         fontSize: 9,
                         margin: [5, 1, 0, 1]
                     });
+                });
+
+                infoStackChildren.push({
+                    stack: diagsList
                 });
             }
 
@@ -100,31 +218,31 @@ export class RecetaPdfService {
                         [{
                             stack: infoStackChildren,
                             fillColor: '#f8f9fa',
-                            margin: [10, 10, 10, 10]
+                            margin: [15, 15, 15, 15]
                         }]
                     ]
                 },
                 layout: {
                     hLineWidth: () => 0,
-                    vLineWidth: (i: number) => (i === 0) ? 4 : 0, // Left border only? Table borders are handled differently.
-                    // To do left border only in pdfmake table is tricky. 
-                    // Use a layout that draws left border.
+                    vLineWidth: (i: number) => (i === 0) ? 4 : 0, // Left border only
                     vLineColor: () => '#3498db',
-                    paddingLeft: () => 10,
+                    paddingLeft: () => 0,
+                    paddingRight: () => 0,
+                    paddingTop: () => 0,
+                    paddingBottom: () => 0
                 },
                 margin: [0, 0, 0, 20]
             });
-
 
             // Medications Table
             if (receta.detalles && receta.detalles.length > 0) {
                 const tableBody: any[] = [
                     [
-                        { text: 'Medicamento', style: 'tableHeader', alignment: 'left' },
-                        { text: 'Tiempo (días)', style: 'tableHeader', alignment: 'left' },
-                        { text: 'VIA (adm.)', style: 'tableHeader', alignment: 'left' },
-                        { text: 'Posología', style: 'tableHeader', alignment: 'left' },
-                        { text: 'Cantidad', style: 'tableHeader', alignment: 'center' }
+                        { text: 'Medicamento', style: 'tableHeader', alignment: 'left', fillColor: '#3498db' },
+                        { text: 'Cantidad', style: 'tableHeader', alignment: 'center', fillColor: '#3498db' },
+                        { text: 'Tiempo (días)', style: 'tableHeader', alignment: 'left', fillColor: '#3498db' },
+                        { text: 'VIA (adm.)', style: 'tableHeader', alignment: 'left', fillColor: '#3498db' },
+                        { text: 'Posología', style: 'tableHeader', alignment: 'left', fillColor: '#3498db' }
                     ]
                 ];
 
@@ -133,32 +251,94 @@ export class RecetaPdfService {
                     const medName = detalle.medicamento ? detalle.medicamento.medicamento : (detalle.medicamentoId || '');
                     tableBody.push([
                         { text: medName, alignment: 'left', fillColor: rowColor, fontSize: 9 },
+                        { text: detalle.cantidad || '', alignment: 'center', fillColor: rowColor, fontSize: 9 },
                         { text: detalle.tiempo || '', alignment: 'left', fillColor: rowColor, fontSize: 9 },
                         { text: detalle.via || '', alignment: 'left', fillColor: rowColor, fontSize: 9 },
-                        { text: detalle.posologia || '', alignment: 'left', fillColor: rowColor, fontSize: 9 },
-                        { text: detalle.cantidad || '', alignment: 'center', fillColor: rowColor, fontSize: 9 }
+                        { text: detalle.posologia || '', alignment: 'left', fillColor: rowColor, fontSize: 9 }
                     ]);
                 });
 
                 content.push({
                     table: {
                         headerRows: 1,
-                        widths: ['30%', '20%', '15%', '20%', '15%'],
+                        widths: ['35%', '10%', '13%', '12%', '30%'],
                         body: tableBody
                     },
                     layout: {
-                        hLineWidth: (i: number, node: any) => (i === 0 || i === 1) ? 0 : 1,
-                        vLineWidth: () => 1,
-                        hLineColor: () => '#dddddd',
-                        vLineColor: () => '#dddddd',
-                        paddingLeft: () => 6,
-                        paddingRight: () => 6,
-                        paddingTop: () => 6,
-                        paddingBottom: () => 6
+                        hLineWidth: (i: number, node: any) => (i === 0) ? 0 : 1,
+                        vLineWidth: () => 0,
+                        hLineColor: () => '#eeeeee',
+                        paddingLeft: () => 10,
+                        paddingRight: () => 10,
+                        paddingTop: () => 8,
+                        paddingBottom: () => 8
                     },
                     margin: [0, 0, 0, 20]
                 });
             }
+
+            // Signature Section in main flow
+            const signatureStack: any[] = [];
+            if (signatureImageSrc) {
+                signatureStack.push({
+                    image: signatureImageSrc,
+                    width: 120,
+                    alignment: 'center',
+                    margin: [0, 0, 0, -5]
+                });
+            } else {
+                signatureStack.push({
+                    text: '',
+                    margin: [0, 0, 0, 60] // Spacer when no signature
+                });
+            }
+
+            // Divider line (200 width, centered)
+            signatureStack.push({
+                table: {
+                    widths: [200],
+                    body: [['']]
+                },
+                layout: {
+                    hLineWidth: (i: number) => (i === 0) ? 1 : 0,
+                    vLineWidth: () => 0,
+                    hLineColor: () => '#333333',
+                    paddingTop: () => 0,
+                    paddingBottom: () => 0
+                },
+                margin: [0, 5, 0, 5],
+                alignment: 'center'
+            });
+
+            signatureStack.push({
+                text: 'Dr. Jhasmany Ricardo Ojeda Cardona',
+                fontSize: 11,
+                bold: true,
+                alignment: 'center',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'Médico Cirujano - Ocupacional',
+                fontSize: 9,
+                alignment: 'center',
+                color: '#555555',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'CMP: 86653    RNA: A09485',
+                fontSize: 8,
+                alignment: 'center',
+                color: '#777777',
+                margin: [0, 2, 0, 0]
+            });
+
+            content.push({
+                stack: signatureStack,
+                margin: [0, 40, 0, 20],
+                alignment: 'center',
+                unbreakable: true
+            });
 
             const docDefinition = {
                 defaultStyle: {
@@ -167,87 +347,13 @@ export class RecetaPdfService {
                 },
                 content: content,
                 footer: (currentPage: number, pageCount: number) => {
-                    const footerStack: any[] = [];
-
-                    // Signature only on the last page
-                    if (currentPage === pageCount) {
-                        if (doctorSignature) {
-                            footerStack.push({
-                                stack: [
-                                    {
-                                        image: doctorSignature.firmaData,
-                                        width: 100,
-                                        alignment: 'center',
-                                        margin: [0, 0, 0, 5]
-                                    },
-                                    {
-                                        text: `DIGITALMENTE FIRMADO POR: ${doctorSignature.usuario.name}`,
-                                        fontSize: 7,
-                                        alignment: 'center',
-                                        color: '#7f8c8d'
-                                    },
-                                    {
-                                        text: `HASH: ${doctorSignature.hashDocumento}`,
-                                        fontSize: 6,
-                                        alignment: 'center',
-                                        color: '#bdc3c7'
-                                    },
-                                    {
-                                        text: `FECHA: ${new Date(doctorSignature.timestamp).toLocaleString()}`,
-                                        fontSize: 6,
-                                        alignment: 'center',
-                                        color: '#bdc3c7',
-                                        margin: [0, 0, 0, 10]
-                                    },
-                                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1, lineColor: '#000' }] },
-                                    { text: 'Firma y Sello Digital', alignment: 'center', fontSize: 10, margin: [0, 5, 0, 0] },
-                                    { text: doctorSignature.usuario.name, alignment: 'center', fontSize: 8, color: '#7f8c8d' }
-                                ],
-                                alignment: 'center',
-                                margin: [0, 0, 0, 15]
-                            });
-                        } else {
-                            footerStack.push({
-                                stack: [
-                                    { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 150, y2: 0, lineWidth: 1, lineColor: '#000' }] },
-                                    { text: 'Firma y Sello', alignment: 'center', fontSize: 10, margin: [0, 5, 0, 0] }
-                                ],
-                                alignment: 'center',
-                                margin: [0, 0, 0, 20]
-                            });
-                        }
-                    }
-
-                    // Standard Footer (Line + Disclaimer + Date)
-                    footerStack.push({
-                        canvas: [
-                            { type: 'line', x1: 56, y1: 0, x2: 538, y2: 0, lineWidth: 0.5, lineColor: '#333333' }
-                        ],
-                        margin: [0, 0, 0, 10]
-                    });
-
-                    footerStack.push({
-                        columns: [
-                            {
-                                text: 'El presente documento es una receta médica válida emitida por JHASMANY.',
-                                fontSize: 8,
-                                color: '#333333',
-                                alignment: 'left',
-                                width: '*'
-                            },
-                            {
-                                text: `Fecha de impresión: ${new Date().toLocaleString('es-ES')}`,
-                                fontSize: 8,
-                                color: '#333333',
-                                alignment: 'right',
-                                width: 'auto'
-                            }
-                        ],
-                        margin: [56, 0, 42, 0] // Align with page margins (Left 56, Right 42)
-                    });
-
+                    if (pageCount <= 1) return null;
                     return {
-                        stack: footerStack
+                        text: `Página ${currentPage} de ${pageCount}`,
+                        fontSize: 8,
+                        color: '#7f8c8d',
+                        alignment: 'center',
+                        margin: [0, 20, 0, 0]
                     };
                 },
                 styles: {
@@ -259,7 +365,7 @@ export class RecetaPdfService {
                     }
                 },
                 pageSize: 'A4',
-                pageMargins: [56, 56, 42, 110] // Increased bottom margin to accommodate signature + footer
+                pageMargins: [56, 56, 42, 56]
             };
 
             const pdfDoc = this.printer.createPdfKitDocument(docDefinition);
@@ -532,5 +638,33 @@ export class RecetaPdfService {
         if (!dateString) return '';
         const [year, month, day] = dateString.split('T')[0].split('-').map(Number);
         return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+    }
+
+    private formatFullName(person: any): string {
+        if (!person) return '-';
+        const parts = [
+            person.paterno?.trim(),
+            person.materno?.trim(),
+            person.nombre?.trim()
+        ].filter(Boolean);
+        return parts.length > 0 ? parts.join(' ') : '-';
+    }
+
+    private calcularEdad(fechaNacimiento: string | undefined): string {
+        if (!fechaNacimiento) return 'No especificada';
+        const hoy = new Date();
+        const nacimiento = new Date(fechaNacimiento);
+        let edad = hoy.getFullYear() - nacimiento.getFullYear();
+        const m = hoy.getMonth() - nacimiento.getMonth();
+        if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) edad--;
+        return `${edad} años`;
+    }
+
+    private formatGenero(genero: string | undefined): string {
+        if (!genero) return 'No especificado';
+        const g = genero.toLowerCase();
+        if (g === 'masculino' || g === 'm') return 'Masculino';
+        if (g === 'femenino' || g === 'f') return 'Femenino';
+        return genero;
     }
 }

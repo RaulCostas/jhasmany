@@ -344,7 +344,8 @@ export const handlePrintReceta = async (receta: Receta, diagnosticos?: any[]) =>
 };
 
 export const handleWhatsAppReceta = async (receta: Receta) => {
-    if (!receta.paciente?.celular) {
+    const phone = receta.paciente?.telefono_celular || receta.paciente?.celular;
+    if (!phone) {
         Swal.fire('Atención', 'El paciente no tiene número de celular registrado', 'warning');
         return;
     }

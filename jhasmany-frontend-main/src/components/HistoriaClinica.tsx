@@ -23,8 +23,6 @@ const HistoriaClinica: React.FC = () => {
     const [paciente, setPaciente] = useState<Paciente | null>(null);
     const [historia, setHistoria] = useState<HistoriaClinicaType[]>([]);
     const [pagos, setPagos] = useState<Pago[]>([]);
-    const [musicaPreferences, setMusicaPreferences] = useState<string[]>([]);
-    const [televisionPreferences, setTelevisionPreferences] = useState<string[]>([]);
 
 
     const [historiaToEdit, setHistoriaToEdit] = useState<HistoriaClinicaType | null>(null);
@@ -75,7 +73,6 @@ const HistoriaClinica: React.FC = () => {
             fetchPaciente();
             fetchHistoria();
             fetchPagos();
-            fetchMusicaTelevision();
         }
     }, [id]);
 
@@ -105,39 +102,6 @@ const HistoriaClinica: React.FC = () => {
             setHistoria(response.data);
         } catch (error) {
             console.error('Error fetching historia:', error);
-        }
-    };
-
-
-
-    const fetchMusicaTelevision = async () => {
-        if (!id) return;
-        try {
-            const [musicasRes, televisionesRes, allMusicasRes, allTelevisionesRes] = await Promise.all([
-                api.get(`/pacientes/${id}/musica`),
-                api.get(`/pacientes/${id}/television`),
-                api.get('/musica?limit=100'),
-                api.get('/television?limit=100')
-            ]);
-
-            const selectedMusicaIds = musicasRes.data || [];
-            const selectedTelevisionIds = televisionesRes.data || [];
-
-            const allMusicas = allMusicasRes.data.data || allMusicasRes.data;
-            const allTelevisiones = allTelevisionesRes.data.data || allTelevisionesRes.data;
-
-            // Mapear IDs a nombres
-            const musicaNames = allMusicas
-                .filter((m: any) => selectedMusicaIds.includes(m.id))
-                .map((m: any) => m.musica);
-            const televisionNames = allTelevisiones
-                .filter((t: any) => selectedTelevisionIds.includes(t.id))
-                .map((t: any) => t.television);
-
-            setMusicaPreferences(musicaNames);
-            setTelevisionPreferences(televisionNames);
-        } catch (error) {
-            console.error('Error fetching música/televisión:', error);
         }
     };
 
@@ -379,6 +343,7 @@ const HistoriaClinica: React.FC = () => {
                                 setSelectedReminderHistoria(item);
                                 setShowReminderModal(true);
                             }}
+                            onSignatureSuccess={fetchHistoria}
                         />
                     </>
                 ) : null}
@@ -390,6 +355,7 @@ const HistoriaClinica: React.FC = () => {
                 onClose={() => setShowSeguimientoModal(false)}
                 historia={historia}
                 paciente={paciente}
+                onSignatureSuccess={fetchHistoria}
             />
 
             {/* Recordatorio Modal */}

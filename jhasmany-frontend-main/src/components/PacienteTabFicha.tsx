@@ -3,9 +3,10 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare } from 'lucide-react';
+import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare, FileSignature, CheckCircle } from 'lucide-react';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 import ManualModal, { type ManualSection } from './ManualModal';
+import SignatureModal from './SignatureModal';
 
 interface PacienteTabFichaProps {
     tipo: 'particular' | 'seguro';
@@ -16,6 +17,7 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
     const [paciente, setPaciente] = useState<Paciente | null>(null);
     const [loading, setLoading] = useState(true);
     const [showManual, setShowManual] = useState(false);
+    const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'filiacion' | 'enfermedad_actual' | 'antecedentes' | 'antecedentes_familiares' | 'examen_fisico' | 'examen_mental' | 'impresion_diagnostica'>('filiacion');
 
     const manualSections: ManualSection[] = [
@@ -33,13 +35,17 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
         }
     ];
 
-    useEffect(() => {
+    const fetchPaciente = () => {
         if (!id) return;
         const url = tipo === 'particular' ? `/pacientes/${id}` : `/pacientes-seguro/${id}`;
         api.get(url)
             .then(r => setPaciente(r.data))
             .catch(console.error)
             .finally(() => setLoading(false));
+    };
+
+    useEffect(() => {
+        fetchPaciente();
     }, [id, tipo]);
 
     if (loading) return (
@@ -774,6 +780,21 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
                                         )}
                                     </div>
                                     <div className="flex items-center gap-2 self-end md:self-center">
+                                        {ficha.receta.esta_firmado ? (
+                                            <div className="flex items-center gap-1 px-3 py-1.5 bg-green-50 dark:bg-green-950/20 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-900/30 rounded-lg text-xs font-bold">
+                                                <CheckCircle size={14} />
+                                                Firmado
+                                            </div>
+                                        ) : (
+                                            <button
+                                                onClick={() => setShowSignatureModal(true)}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm"
+                                                title="Firmar Receta"
+                                            >
+                                                <FileSignature size={14} />
+                                                Firmar
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => {
                                                 const recetaConPaciente = {
@@ -816,6 +837,19 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
                 )}
 
             </div>
+
+            {showSignatureModal && ficha && ficha.receta && (
+                <SignatureModal
+                    isOpen={showSignatureModal}
+                    onClose={() => setShowSignatureModal(false)}
+                    tipoDocumento="receta"
+                    documentoId={ficha.receta.id}
+                    rolFirmante="doctor"
+                    onSuccess={() => {
+                        fetchPaciente();
+                    }}
+                />
+            )}
 
             <ManualModal 
                 isOpen={showManual}
