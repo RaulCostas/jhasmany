@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare, FileSignature, CheckCircle } from 'lucide-react';
+import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare, FileSignature, CheckCircle, Volume2, VolumeX } from 'lucide-react';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
@@ -19,6 +19,45 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
     const [showManual, setShowManual] = useState(false);
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'filiacion' | 'enfermedad_actual' | 'antecedentes' | 'antecedentes_familiares' | 'examen_fisico' | 'examen_mental' | 'impresion_diagnostica'>('filiacion');
+    const [isSpeaking, setIsSpeaking] = useState(false);
+
+    useEffect(() => {
+        return () => {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+        setIsSpeaking(false);
+    }, [activeTab]);
+
+    const handleSpeak = (text: string) => {
+        if ('speechSynthesis' in window) {
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+            } else {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.onend = () => {
+                    setIsSpeaking(false);
+                };
+                utterance.onerror = () => {
+                    setIsSpeaking(false);
+                };
+                setIsSpeaking(true);
+                window.speechSynthesis.speak(utterance);
+            }
+        } else {
+            alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
 
     const manualSections: ManualSection[] = [
         {
@@ -252,7 +291,29 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
                                 <Field label="Síntomas Principales" value={ficha.enf_actual_sintomas} />
                             </div>
                             <div className="bg-blue-50/50 dark:bg-blue-900/10 p-5 rounded-2xl border border-blue-100 dark:border-blue-800/30">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 block mb-2">Relato Cronológico</span>
+                                <div className="flex justify-between items-center mb-3">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400">Relato Cronológico</span>
+                                    {ficha.enf_actual_relato && (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSpeak(ficha.enf_actual_relato || '')}
+                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-blue-200 dark:border-blue-700 hover:scale-105 active:scale-95"
+                                            title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
+                                        >
+                                            {isSpeaking ? (
+                                                <>
+                                                    <VolumeX size={14} className="text-red-500 dark:text-red-400 animate-pulse" />
+                                                    <span>Detener</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Volume2 size={14} />
+                                                    <span>Escuchar</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
                                 <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">
                                     {ficha.enf_actual_relato || <span className="text-gray-400 font-normal italic">Sin relato registrado</span>}
                                 </p>

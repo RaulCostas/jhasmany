@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
 import { getLocalDateString } from '../utils/dateUtils';
-import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope, Trash2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope, Trash2, AlertCircle, Volume2, VolumeX, Mic, MicOff } from 'lucide-react';
 import { CIE10_DISORDERS } from '../constants/cie10';
 import type { FichaMedicaDiagnostico, RecetaDetalle, Medicamento } from '../types';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
@@ -63,6 +63,112 @@ const PacienteForm: React.FC = () => {
     const [activeTabForm, setActiveTabForm] = useState<'filiacion' | 'enfermedad_actual' | 'antecedentes' | 'antecedentes_familiares' | 'examen_fisico' | 'examen_mental' | 'impresion_diagnostica'>('filiacion');
     const [diagnosticosList, setDiagnosticosList] = useState<FichaMedicaDiagnostico[]>([]);
     const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
+    const [isSpeaking, setIsSpeaking] = useState(false);
+
+    useEffect(() => {
+        return () => {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+        setIsSpeaking(false);
+    }, [activeTabForm]);
+
+    const handleSpeak = (text: string) => {
+        if ('speechSynthesis' in window) {
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+            } else {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.onend = () => {
+                    setIsSpeaking(false);
+                };
+                utterance.onerror = () => {
+                    setIsSpeaking(false);
+                };
+                setIsSpeaking(true);
+                window.speechSynthesis.speak(utterance);
+            }
+        } else {
+            alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
+
+    const [isListening, setIsListening] = useState(false);
+    const recognitionRef = useRef<any>(null);
+
+    useEffect(() => {
+        return () => {
+            if (recognitionRef.current) {
+                recognitionRef.current.stop();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+        }
+        setIsListening(false);
+    }, [activeTabForm]);
+
+    const handleListen = () => {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        if (!SpeechRecognition) {
+            alert('Su navegador no soporta el reconocimiento de voz. Pruebe con Google Chrome.');
+            return;
+        }
+
+        if (isListening) {
+            recognitionRef.current?.stop();
+            setIsListening(false);
+        } else {
+            if ('speechSynthesis' in window && isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+            }
+
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = 'es-PE';
+
+            recognition.onstart = () => {
+                setIsListening(true);
+            };
+
+            recognition.onresult = (event: any) => {
+                const transcript = event.results[event.results.length - 1][0].transcript;
+                setFormData(prev => ({
+                    ...prev,
+                    enf_actual_relato: prev.enf_actual_relato
+                        ? prev.enf_actual_relato.trim() + ' ' + transcript.trim()
+                        : transcript.trim()
+                }));
+            };
+
+            recognition.onerror = (event: any) => {
+                console.error('Speech recognition error:', event.error);
+                setIsListening(false);
+            };
+
+            recognition.onend = () => {
+                setIsListening(false);
+            };
+
+            recognition.start();
+            recognitionRef.current = recognition;
+        }
+    };
 
     const [emitirReceta, setEmitirReceta] = useState(false);
     const [recetaDetalles, setRecetaDetalles] = useState<RecetaDetalle[]>([{
@@ -970,7 +1076,56 @@ const PacienteForm: React.FC = () => {
                                 </div>
                             </div>
                             <div className="md:col-span-2">
-                                <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400 mb-1">Relato Cronológico</label>
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="block text-sm font-semibold text-gray-600 dark:text-gray-400">Relato Cronológico</label>
+                                    <div className="flex gap-2">
+                                        {/* Botón de Dictado (Micrófono) */}
+                                        <button
+                                            type="button"
+                                            onClick={handleListen}
+                                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm border hover:scale-105 active:scale-95 ${
+                                                isListening
+                                                    ? 'bg-red-500 hover:bg-red-600 text-white border-red-600 animate-pulse'
+                                                    : 'bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 border-green-200 dark:border-green-700'
+                                            }`}
+                                            title={isListening ? "Detener dictado" : "Dictar relato por voz"}
+                                        >
+                                            {isListening ? (
+                                                <>
+                                                    <MicOff size={13} />
+                                                    <span>Detener Dictado</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Mic size={13} />
+                                                    <span>Dictar</span>
+                                                </>
+                                            )}
+                                        </button>
+
+                                        {/* Botón de Escuchar (Lectura por voz) */}
+                                        {formData.enf_actual_relato && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSpeak(formData.enf_actual_relato || '')}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 transition-all shadow-sm border border-green-200 dark:border-green-700 hover:scale-105 active:scale-95"
+                                                title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
+                                            >
+                                                {isSpeaking ? (
+                                                    <>
+                                                        <VolumeX size={13} className="text-red-500 dark:text-red-400 animate-pulse" />
+                                                        <span>Detener</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Volume2 size={13} />
+                                                        <span>Escuchar</span>
+                                                    </>
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
                                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Describir el episodio actual, factores agravantes, repercusión social y tratamiento recibido.</p>
                                 <textarea name="enf_actual_relato" value={formData.enf_actual_relato} onChange={handleChange} rows={6} placeholder="El paciente relata que hace..." className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 outline-none resize-y" />
                             </div>

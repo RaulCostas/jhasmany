@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { getLocalDateString, formatDate } from '../utils/dateUtils';
 import { CIE10_DISORDERS } from '../constants/cie10';
-import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle, Volume2, VolumeX } from 'lucide-react';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
 import SignatureModal from './SignatureModal';
 
@@ -97,6 +97,45 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
         posologia: '',
         cantidad: ''
     }]);
+    const [isSpeaking, setIsSpeaking] = useState(false);
+
+    useEffect(() => {
+        return () => {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
+        setIsSpeaking(false);
+    }, [historiaToEdit]);
+
+    const handleSpeak = (text: string) => {
+        if ('speechSynthesis' in window) {
+            if (isSpeaking) {
+                window.speechSynthesis.cancel();
+                setIsSpeaking(false);
+            } else {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.lang = 'es-ES';
+                utterance.onend = () => {
+                    setIsSpeaking(false);
+                };
+                utterance.onerror = () => {
+                    setIsSpeaking(false);
+                };
+                setIsSpeaking(true);
+                window.speechSynthesis.speak(utterance);
+            }
+        } else {
+            alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
 
     useEffect(() => {
         api.get('/medicamento?limit=9999')
@@ -491,7 +530,29 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
 
                         {/* Relato Cronológico (jalar de Ficha) */}
                         <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-100 dark:border-gray-700">
-                            <span className="block text-xs font-bold text-gray-400 uppercase">Relato Cronológico (Ficha Médica)</span>
+                            <div className="flex justify-between items-center mb-1.5">
+                                <span className="block text-xs font-bold text-gray-400 uppercase">Relato Cronológico (Ficha Médica)</span>
+                                {paciente?.fichaClinica?.enf_actual_relato && (
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSpeak(paciente?.fichaClinica?.enf_actual_relato || '')}
+                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-blue-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95"
+                                        title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
+                                    >
+                                        {isSpeaking ? (
+                                            <>
+                                                <VolumeX size={12} className="text-red-500 dark:text-red-400 animate-pulse" />
+                                                <span>Detener</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Volume2 size={12} />
+                                                <span>Escuchar</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
                             <span className="text-sm text-gray-800 dark:text-gray-200 font-medium whitespace-pre-wrap">
                                 {paciente?.fichaClinica?.enf_actual_relato || <span className="text-gray-400 italic">No registrado en Ficha</span>}
                             </span>
