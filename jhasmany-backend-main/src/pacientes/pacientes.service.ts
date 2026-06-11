@@ -147,7 +147,7 @@ export class PacientesService {
         }
         // -----------------------
 
-        return await this.dataSource.transaction(async (manager) => {
+        const result = await this.dataSource.transaction(async (manager) => {
             const paciente = manager.create(Paciente, pacienteData);
             if (pacienteData.usuarioId) {
                 paciente.usuario = { id: Number(pacienteData.usuarioId) } as any;
@@ -161,30 +161,29 @@ export class PacientesService {
             });
             const savedFicha = await manager.save(FichaMedica, ficha);
 
-            if (receta && receta.detalles && receta.detalles.length > 0) {
-                const validDetalles = receta.detalles.filter((d: any) => d.medicamentoId > 0);
-                if (validDetalles.length > 0) {
-                    await this.recetaService.create({
-                        pacienteId: savedPaciente.id,
-                        userId: savedPaciente.usuarioId,
-                        fecha: savedPaciente.fecha_ingreso,
-                        fichaMedicaId: savedFicha.id,
-                        detalles: validDetalles
-                    });
-                }
-            }
-
-            return (await manager.findOne(Paciente, {
-                where: { id: savedPaciente.id },
-                relations: [
-                    'fichaClinica', 
-                    'fichaClinica.diagnosticos',
-                    'fichaClinica.receta',
-                    'fichaClinica.receta.detalles',
-                    'fichaClinica.receta.detalles.medicamento'
-                ],
-            }))!;
+            return {
+                savedPaciente,
+                savedFicha,
+                receta
+            };
         });
+
+        const { savedPaciente, savedFicha, receta } = result;
+
+        if (receta && receta.detalles && receta.detalles.length > 0) {
+            const validDetalles = receta.detalles.filter((d: any) => d.medicamentoId > 0);
+            if (validDetalles.length > 0) {
+                await this.recetaService.create({
+                    pacienteId: savedPaciente.id,
+                    userId: savedPaciente.usuarioId,
+                    fecha: savedPaciente.fecha_ingreso,
+                    fichaMedicaId: savedFicha.id,
+                    detalles: validDetalles
+                });
+            }
+        }
+
+        return (await this.findOne(savedPaciente.id));
     }
 
     async findAll(
@@ -248,7 +247,7 @@ export class PacientesService {
     }
 
     async update(id: number, updatePacienteDto: UpdatePacienteDto): Promise<Paciente> {
-        return await this.dataSource.transaction(async (manager) => {
+        const result = await this.dataSource.transaction(async (manager) => {
             const { pacienteData, fichaData } = this.splitDto(updatePacienteDto);
 
             const paciente = await manager.findOne(Paciente, { where: { id } });
@@ -262,6 +261,8 @@ export class PacientesService {
 
             const { receta, ...fichaCleanData } = fichaData;
 
+            let fichaId: number | undefined;
+
             // Update or create ficha
             if (Object.keys(fichaCleanData).length > 0 || receta !== undefined) {
                 let ficha = await manager.findOne(FichaMedica, { where: { pacienteId: id } });
@@ -271,50 +272,51 @@ export class PacientesService {
                     }
                     manager.merge(FichaMedica, ficha, fichaCleanData);
                     await manager.save(FichaMedica, ficha);
+                    fichaId = ficha.id;
                 } else {
                     const newFicha = manager.create(FichaMedica, { ...fichaCleanData, pacienteId: id });
                     ficha = await manager.save(FichaMedica, newFicha);
-                }
-
-                if (receta) {
-                    const existingReceta = await this.recetaRepository.findOne({
-                        where: { fichaMedicaId: ficha.id }
-                    });
-
-                    const validDetalles = receta.detalles ? receta.detalles.filter((d: any) => d.medicamentoId > 0) : [];
-
-                    if (validDetalles.length > 0) {
-                        const recetaPayload = {
-                            detalles: validDetalles,
-                            pacienteId: id,
-                            userId: paciente.usuarioId || updatePacienteDto.usuarioId,
-                            fecha: paciente.fecha_ingreso,
-                            fichaMedicaId: ficha.id
-                        };
-
-                        if (existingReceta) {
-                            await this.recetaService.update(existingReceta.id, recetaPayload);
-                        } else {
-                            await this.recetaService.create(recetaPayload);
-                        }
-                    } else if (existingReceta) {
-                        // If they cleared all medicines, delete the prescription
-                        await this.recetaService.remove(existingReceta.id);
-                    }
+                    fichaId = ficha.id;
                 }
             }
 
-            return (await manager.findOne(Paciente, {
-                where: { id },
-                relations: [
-                    'fichaClinica', 
-                    'fichaClinica.diagnosticos',
-                    'fichaClinica.receta',
-                    'fichaClinica.receta.detalles',
-                    'fichaClinica.receta.detalles.medicamento'
-                ],
-            }))!;
+            return {
+                paciente,
+                fichaId,
+                receta
+            };
         });
+
+        const { paciente, fichaId, receta } = result;
+
+        if (fichaId && receta) {
+            const existingReceta = await this.recetaRepository.findOne({
+                where: { fichaMedicaId: fichaId }
+            });
+
+            const validDetalles = receta.detalles ? receta.detalles.filter((d: any) => d.medicamentoId > 0) : [];
+
+            if (validDetalles.length > 0) {
+                const recetaPayload = {
+                    detalles: validDetalles,
+                    pacienteId: id,
+                    userId: paciente.usuarioId || updatePacienteDto.usuarioId,
+                    fecha: paciente.fecha_ingreso,
+                    fichaMedicaId: fichaId
+                };
+
+                if (existingReceta) {
+                    await this.recetaService.update(existingReceta.id, recetaPayload);
+                } else {
+                    await this.recetaService.create(recetaPayload);
+                }
+            } else if (existingReceta) {
+                // If they cleared all medicines, delete the prescription
+                await this.recetaService.remove(existingReceta.id);
+            }
+        }
+
+        return await this.findOne(id);
     }
 
     async remove(id: number): Promise<void> {
