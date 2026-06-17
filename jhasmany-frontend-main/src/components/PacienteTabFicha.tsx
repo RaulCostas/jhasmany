@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import type { Paciente } from '../types';
 import { formatDate } from '../utils/dateUtils';
-import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare, FileSignature, CheckCircle, Volume2, VolumeX } from 'lucide-react';
+import { Heart, User, Stethoscope, Shield, Info, Activity, Calendar, MapPin, Phone, Users, FileText, Briefcase, Printer, MessageSquare, FileSignature, CheckCircle, Volume2, VolumeX, Play, Pause, Square } from 'lucide-react';
 import { handlePrintReceta, handleWhatsAppReceta } from '../utils/recetaActions';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
@@ -20,6 +20,7 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
     const [showSignatureModal, setShowSignatureModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'filiacion' | 'enfermedad_actual' | 'antecedentes' | 'antecedentes_familiares' | 'examen_fisico' | 'examen_mental' | 'impresion_diagnostica'>('filiacion');
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
 
     useEffect(() => {
         return () => {
@@ -34,28 +35,49 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
             window.speechSynthesis.cancel();
         }
         setIsSpeaking(false);
+        setIsPaused(false);
     }, [activeTab]);
 
     const handleSpeak = (text: string) => {
         if ('speechSynthesis' in window) {
-            if (isSpeaking) {
-                window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            utterance.onend = () => {
                 setIsSpeaking(false);
-            } else {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'es-ES';
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                };
-                setIsSpeaking(true);
-                window.speechSynthesis.speak(utterance);
-            }
+                setIsPaused(false);
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+                setIsPaused(false);
+            };
+            setIsSpeaking(true);
+            setIsPaused(false);
+            window.speechSynthesis.speak(utterance);
         } else {
             alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
+
+    const handlePause = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.pause();
+            setIsPaused(true);
+        }
+    };
+
+    const handleResume = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.resume();
+            setIsPaused(false);
+        }
+    };
+
+    const handleStop = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+            setIsPaused(false);
         }
     };
 
@@ -294,24 +316,52 @@ const PacienteTabFicha: React.FC<PacienteTabFichaProps> = ({ tipo }) => {
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400">Relato Cronológico</span>
                                     {ficha.enf_actual_relato && (
-                                        <button
-                                            type="button"
-                                            onClick={() => handleSpeak(ficha.enf_actual_relato || '')}
-                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-blue-200 dark:border-blue-700 hover:scale-105 active:scale-95"
-                                            title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
-                                        >
-                                            {isSpeaking ? (
-                                                <>
-                                                    <VolumeX size={14} className="text-red-500 dark:text-red-400 animate-pulse" />
-                                                    <span>Detener</span>
-                                                </>
-                                            ) : (
-                                                <>
+                                        <div className="flex items-center gap-2">
+                                            {!isSpeaking ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleSpeak(ficha.enf_actual_relato || '')}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-blue-200 dark:border-blue-700 hover:scale-105 active:scale-95"
+                                                    title="Escuchar relato"
+                                                >
                                                     <Volume2 size={14} />
                                                     <span>Escuchar</span>
+                                                </button>
+                                            ) : (
+                                                <>
+                                                    {isPaused ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleResume}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-blue-200 dark:border-blue-700 hover:scale-105 active:scale-95 animate-pulse"
+                                                            title="Reanudar lectura"
+                                                        >
+                                                            <Play size={14} className="text-green-500 fill-green-500" />
+                                                            <span>Reanudar</span>
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handlePause}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-blue-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-blue-200 dark:border-blue-700 hover:scale-105 active:scale-95"
+                                                            title="Pausar lectura"
+                                                        >
+                                                            <Pause size={14} className="text-amber-500 fill-amber-500" />
+                                                            <span>Pausar</span>
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleStop}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-all shadow-sm border border-red-200 dark:border-red-900/50 hover:scale-105 active:scale-95"
+                                                        title="Detener lectura"
+                                                    >
+                                                        <Square size={14} className="text-red-500 fill-red-500" />
+                                                        <span>Detener</span>
+                                                    </button>
                                                 </>
                                             )}
-                                        </button>
+                                        </div>
                                     )}
                                 </div>
                                 <p className="text-sm text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap">

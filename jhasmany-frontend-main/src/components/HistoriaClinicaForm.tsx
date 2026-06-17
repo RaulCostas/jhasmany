@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import { getLocalDateString, formatDate } from '../utils/dateUtils';
 import { CIE10_DISORDERS } from '../constants/cie10';
-import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle, Volume2, VolumeX } from 'lucide-react';
+import { Calendar, Info, Stethoscope, Plus, Trash2, AlertCircle, Volume2, VolumeX, Play, Pause, Square } from 'lucide-react';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
 import SignatureModal from './SignatureModal';
 
@@ -98,6 +98,7 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
         cantidad: ''
     }]);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
 
     useEffect(() => {
         return () => {
@@ -112,28 +113,49 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
             window.speechSynthesis.cancel();
         }
         setIsSpeaking(false);
+        setIsPaused(false);
     }, [historiaToEdit]);
 
     const handleSpeak = (text: string) => {
         if ('speechSynthesis' in window) {
-            if (isSpeaking) {
-                window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            utterance.onend = () => {
                 setIsSpeaking(false);
-            } else {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'es-ES';
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                };
-                setIsSpeaking(true);
-                window.speechSynthesis.speak(utterance);
-            }
+                setIsPaused(false);
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+                setIsPaused(false);
+            };
+            setIsSpeaking(true);
+            setIsPaused(false);
+            window.speechSynthesis.speak(utterance);
         } else {
             alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
+
+    const handlePause = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.pause();
+            setIsPaused(true);
+        }
+    };
+
+    const handleResume = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.resume();
+            setIsPaused(false);
+        }
+    };
+
+    const handleStop = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+            setIsPaused(false);
         }
     };
 
@@ -533,24 +555,52 @@ const HistoriaClinicaForm: React.FC<HistoriaClinicaFormProps> = ({
                             <div className="flex justify-between items-center mb-1.5">
                                 <span className="block text-xs font-bold text-gray-400 uppercase">Relato Cronológico (Ficha Médica)</span>
                                 {paciente?.fichaClinica?.enf_actual_relato && (
-                                    <button
-                                        type="button"
-                                        onClick={() => handleSpeak(paciente?.fichaClinica?.enf_actual_relato || '')}
-                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-blue-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95"
-                                        title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
-                                    >
-                                        {isSpeaking ? (
-                                            <>
-                                                <VolumeX size={12} className="text-red-500 dark:text-red-400 animate-pulse" />
-                                                <span>Detener</span>
-                                            </>
-                                        ) : (
-                                            <>
+                                    <div className="flex items-center gap-1.5">
+                                        {!isSpeaking ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSpeak(paciente?.fichaClinica?.enf_actual_relato || '')}
+                                                className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-blue-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95"
+                                                title="Escuchar relato"
+                                            >
                                                 <Volume2 size={12} />
                                                 <span>Escuchar</span>
+                                            </button>
+                                        ) : (
+                                            <>
+                                                {isPaused ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleResume}
+                                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-blue-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95 animate-pulse"
+                                                        title="Reanudar lectura"
+                                                    >
+                                                        <Play size={12} className="text-green-500 fill-green-500" />
+                                                        <span>Reanudar</span>
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handlePause}
+                                                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-blue-50 dark:bg-gray-700 dark:hover:bg-gray-600 text-blue-600 dark:text-blue-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95"
+                                                        title="Pausar lectura"
+                                                    >
+                                                        <Pause size={12} className="text-amber-500 fill-amber-500" />
+                                                        <span>Pausar</span>
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={handleStop}
+                                                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 hover:bg-red-50 dark:bg-gray-700 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-all shadow-sm border border-gray-200 dark:border-gray-600 hover:scale-105 active:scale-95"
+                                                    title="Detener lectura"
+                                                >
+                                                    <Square size={12} className="text-red-500 fill-red-500" />
+                                                    <span>Detener</span>
+                                                </button>
                                             </>
                                         )}
-                                    </button>
+                                    </div>
                                 )}
                             </div>
                             <span className="text-sm text-gray-800 dark:text-gray-200 font-medium whitespace-pre-wrap">

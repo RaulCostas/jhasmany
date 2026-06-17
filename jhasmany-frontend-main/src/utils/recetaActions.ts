@@ -294,14 +294,15 @@ export const handlePrintReceta = async (receta: Receta, diagnosticos?: any[]) =>
                         <img src="${doctorSignature.firmaData}" class="signature-image" style="max-height: 80px; margin-bottom: -5px;" />
                     ` : '<div style="height: 60px;"></div>'}
                     <div style="border-top: 1px solid #333; width: 250px; margin: 5px auto;"></div>
-                    <div style="font-size: 11px; font-weight: bold; margin-top: 5px;">
-                       Dr. Jhasmany Ricardo Ojeda Cardona
-                    </div>
-                    <div style="font-size: 9px; color: #555;">
-                       Médico Cirujano - Ocupacional
-                    </div>
-                    <div style="font-size: 8px; color: #777;">
-                       CMP: 86653 &nbsp;&nbsp; RNA: A09485
+                    <div style="font-size: 10px; margin-top: 5px; color: #333; line-height: 1.3;">
+                        OS - 419883 O+<br/>
+                        <strong>Jhasmany Ricardo OJEDA</strong><br/>
+                        <strong>CARDONA</strong><br/>
+                        CAP. S PNP<br/>
+                        MR. PSIQUIATRIA<br/>
+                        HN PNP LNS<br/>
+                        CMP 86653 DNI<br/>
+                        44996179
                     </div>
                 </div>
             </div>

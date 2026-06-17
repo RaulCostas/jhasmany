@@ -311,25 +311,61 @@ export class RecetaPdfService {
             });
 
             signatureStack.push({
-                text: 'Dr. Jhasmany Ricardo Ojeda Cardona',
-                fontSize: 11,
+                text: 'OS - 419883 O+',
+                fontSize: 10,
+                alignment: 'center',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'Jhasmany Ricardo OJEDA',
+                fontSize: 10,
                 bold: true,
                 alignment: 'center',
                 color: '#333333',
                 margin: [0, 2, 0, 0]
             });
             signatureStack.push({
-                text: 'Médico Cirujano - Ocupacional',
-                fontSize: 9,
+                text: 'CARDONA',
+                fontSize: 10,
+                bold: true,
                 alignment: 'center',
-                color: '#555555',
+                color: '#333333',
                 margin: [0, 2, 0, 0]
             });
             signatureStack.push({
-                text: 'CMP: 86653    RNA: A09485',
-                fontSize: 8,
+                text: 'CAP. S PNP',
+                fontSize: 10,
                 alignment: 'center',
-                color: '#777777',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'MR. PSIQUIATRIA',
+                fontSize: 10,
+                alignment: 'center',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'HN PNP LNS',
+                fontSize: 10,
+                alignment: 'center',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: 'CMP 86653 DNI',
+                fontSize: 10,
+                alignment: 'center',
+                color: '#333333',
+                margin: [0, 2, 0, 0]
+            });
+            signatureStack.push({
+                text: '44996179',
+                fontSize: 10,
+                alignment: 'center',
+                color: '#333333',
                 margin: [0, 2, 0, 0]
             });
 

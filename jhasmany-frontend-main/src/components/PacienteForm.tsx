@@ -5,7 +5,7 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import SignatureModal from './SignatureModal';
 import { getLocalDateString } from '../utils/dateUtils';
-import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope, Trash2, AlertCircle, Volume2, VolumeX, Mic, MicOff } from 'lucide-react';
+import { ArrowLeft, User, Users, Activity, Wind, Info, Edit, Mail, Calendar, MapPin, Phone, Briefcase, HelpCircle, Save, X, Fingerprint, Search, Plus, Stethoscope, Trash2, AlertCircle, Volume2, VolumeX, Mic, MicOff, Play, Pause, Square } from 'lucide-react';
 import { CIE10_DISORDERS } from '../constants/cie10';
 import type { FichaMedicaDiagnostico, RecetaDetalle, Medicamento } from '../types';
 import SearchableMedicamentoSelect from './SearchableMedicamentoSelect';
@@ -64,6 +64,7 @@ const PacienteForm: React.FC = () => {
     const [diagnosticosList, setDiagnosticosList] = useState<FichaMedicaDiagnostico[]>([]);
     const [searchTerms, setSearchTerms] = useState<Record<number, string>>({});
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [isPaused, setIsPaused] = useState(false);
 
     useEffect(() => {
         return () => {
@@ -78,28 +79,49 @@ const PacienteForm: React.FC = () => {
             window.speechSynthesis.cancel();
         }
         setIsSpeaking(false);
+        setIsPaused(false);
     }, [activeTabForm]);
 
     const handleSpeak = (text: string) => {
         if ('speechSynthesis' in window) {
-            if (isSpeaking) {
-                window.speechSynthesis.cancel();
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.lang = 'es-ES';
+            utterance.onend = () => {
                 setIsSpeaking(false);
-            } else {
-                window.speechSynthesis.cancel();
-                const utterance = new SpeechSynthesisUtterance(text);
-                utterance.lang = 'es-ES';
-                utterance.onend = () => {
-                    setIsSpeaking(false);
-                };
-                utterance.onerror = () => {
-                    setIsSpeaking(false);
-                };
-                setIsSpeaking(true);
-                window.speechSynthesis.speak(utterance);
-            }
+                setIsPaused(false);
+            };
+            utterance.onerror = () => {
+                setIsSpeaking(false);
+                setIsPaused(false);
+            };
+            setIsSpeaking(true);
+            setIsPaused(false);
+            window.speechSynthesis.speak(utterance);
         } else {
             alert('Su navegador no soporta la función de lectura de voz.');
+        }
+    };
+
+    const handlePause = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.pause();
+            setIsPaused(true);
+        }
+    };
+
+    const handleResume = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.resume();
+            setIsPaused(false);
+        }
+    };
+
+    const handleStop = () => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            setIsSpeaking(false);
+            setIsPaused(false);
         }
     };
 
@@ -135,6 +157,7 @@ const PacienteForm: React.FC = () => {
             if ('speechSynthesis' in window && isSpeaking) {
                 window.speechSynthesis.cancel();
                 setIsSpeaking(false);
+                setIsPaused(false);
             }
 
             const recognition = new SpeechRecognition();
@@ -1105,24 +1128,52 @@ const PacienteForm: React.FC = () => {
 
                                         {/* Botón de Escuchar (Lectura por voz) */}
                                         {formData.enf_actual_relato && (
-                                            <button
-                                                type="button"
-                                                onClick={() => handleSpeak(formData.enf_actual_relato || '')}
-                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 transition-all shadow-sm border border-green-200 dark:border-green-700 hover:scale-105 active:scale-95"
-                                                title={isSpeaking ? "Detener lectura" : "Escuchar relato"}
-                                            >
-                                                {isSpeaking ? (
-                                                    <>
-                                                        <VolumeX size={13} className="text-red-500 dark:text-red-400 animate-pulse" />
-                                                        <span>Detener</span>
-                                                    </>
-                                                ) : (
-                                                    <>
+                                            <div className="flex items-center gap-2">
+                                                {!isSpeaking ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSpeak(formData.enf_actual_relato || '')}
+                                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 transition-all shadow-sm border border-green-200 dark:border-green-700 hover:scale-105 active:scale-95"
+                                                        title="Escuchar relato"
+                                                    >
                                                         <Volume2 size={13} />
                                                         <span>Escuchar</span>
+                                                    </button>
+                                                ) : (
+                                                    <>
+                                                        {isPaused ? (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handleResume}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 transition-all shadow-sm border border-green-200 dark:border-green-700 hover:scale-105 active:scale-95 animate-pulse"
+                                                                title="Reanudar lectura"
+                                                            >
+                                                                <Play size={13} className="text-green-500 fill-green-500" />
+                                                                <span>Reanudar</span>
+                                                            </button>
+                                                        ) : (
+                                                            <button
+                                                                type="button"
+                                                                onClick={handlePause}
+                                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-green-50 dark:bg-gray-800 dark:hover:bg-gray-700/80 text-green-600 dark:text-green-400 transition-all shadow-sm border border-green-200 dark:border-green-700 hover:scale-105 active:scale-95"
+                                                                title="Pausar lectura"
+                                                            >
+                                                                <Pause size={13} className="text-amber-500 fill-amber-500" />
+                                                                <span>Pausar</span>
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleStop}
+                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 transition-all shadow-sm border border-red-200 dark:border-red-900/50 hover:scale-105 active:scale-95"
+                                                            title="Detener lectura"
+                                                        >
+                                                            <Square size={13} className="text-red-500 fill-red-500" />
+                                                            <span>Detener</span>
+                                                        </button>
                                                     </>
                                                 )}
-                                            </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
