@@ -26,6 +26,11 @@ export class AgendaController {
         return await this.agendaService.enviarRecordatoriosManana();
     }
 
+    @Post(':id/recordatorio')
+    async enviarRecordatorioIndividual(@Param('id') id: string) {
+        return await this.agendaService.enviarRecordatorioIndividual(+id);
+    }
+
     @Get()
     findAll(
         @Query('date') date?: string,

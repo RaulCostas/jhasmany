@@ -491,6 +491,7 @@ export interface Agenda {
     estado: string;
     observaciones?: string;
     motivoCancelacion?: string;
+    recordatorioEnviado?: boolean;
 }
 
 export interface GastoFijo {

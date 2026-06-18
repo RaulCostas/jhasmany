@@ -45,8 +45,6 @@ const AgendaView: React.FC = () => {
     const [editingAppointment, setEditingAppointment] = useState<Agenda | null>(null);
     const [viewMode, setViewMode] = useState<'day' | 'month'>('day');
     const [monthAppointments, setMonthAppointments] = useState<Agenda[]>([]);
-    const [isSendingReminders, setIsSendingReminders] = useState(false);
-
 
     // Patient Search State
     const [pacientes, setPacientes] = useState<Paciente[]>([]);
@@ -319,50 +317,59 @@ const AgendaView: React.FC = () => {
         });
     };
 
-    const handleEnviarRecordatoriosManana = async () => {
+    const handleEnviarRecordatorioIndividual = async (id: number, e: React.MouseEvent) => {
+        e.stopPropagation(); // Prevent opening the edit modal
+
         try {
             const result = await Swal.fire({
-                title: '¿Enviar recordatorios?',
-                text: 'Se enviará un mensaje de WhatsApp a todos los pacientes con cita agendada para mañana.',
+                title: '¿Enviar recordatorio?',
+                text: 'Se enviará un recordatorio de cita individual a través de WhatsApp.',
                 icon: 'question',
                 showCancelButton: true,
-                confirmButtonColor: '#3085d6',
-                cancelButtonColor: '#d33',
                 confirmButtonText: 'Sí, enviar',
-                cancelButtonText: 'Cancelar'
+                cancelButtonText: 'Cancelar',
+                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+                customClass: {
+                    confirmButton: 'px-4 py-2 mx-2 bg-green-500 hover:bg-green-600 text-white rounded font-bold transition-all shadow-md outline-none',
+                    cancelButton: 'px-4 py-2 mx-2 bg-gray-500 hover:bg-gray-600 text-white rounded font-bold transition-all shadow-md outline-none'
+                },
+                buttonsStyling: false
             });
 
-            if (result.isConfirmed) {
-                setIsSendingReminders(true);
+            if (!result.isConfirmed) return;
+
+            Swal.fire({
+                title: 'Enviando recordatorio...',
+                text: 'Por favor, espere un momento.',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
+            });
+
+            const response = await api.post(`/agenda/${id}/recordatorio`);
+
+            if (response.data.success) {
                 Swal.fire({
-                    title: 'Enviando mensajes...',
-                    text: 'Por favor, espere un momento.',
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                    title: '¡Enviado!',
+                    text: response.data.message || 'El recordatorio se envió con éxito.',
+                    icon: 'success',
+                    showConfirmButton: false,
+                    timer: 2000,
+                    background: document.documentElement.classList.contains('dark') ? '#1f2937' : '#fff',
+                    color: document.documentElement.classList.contains('dark') ? '#f3f4f6' : '#000',
                 });
-
-                const response = await api.post('/agenda/recordatorios-manana', {
-                    });
-
-                if (response.data.success) {
-                    Swal.fire({
-                        title: '¡Enviados!',
-                        text: `Mensajes enviados: ${response.data.enviados}. Fallidos: ${response.data.fallidos}.`,
-                        icon: 'success',
-                        showConfirmButton: false,
-                        timer: 1500
-                    });
-                } else {
-                    Swal.fire('Error', 'Hubo un problema al enviar los mensajes', 'error');
-                }
+                fetchAppointments(); // Refresh grid
+            } else {
+                Swal.fire('Error', response.data.message || 'No se pudo enviar el recordatorio', 'error');
             }
-        } catch (error) {
-            console.error('Error sending reminders:', error);
-            Swal.fire('Error', 'Error de conexión con el servidor', 'error');
-        } finally {
-            setIsSendingReminders(false);
+        } catch (error: any) {
+            console.error('Error sending individual reminder:', error);
+            const errMsg = error.response?.data?.message || 'Error de conexión con el servidor';
+            Swal.fire('Error', errMsg, 'error');
         }
     };
 
@@ -607,17 +614,7 @@ const AgendaView: React.FC = () => {
                             <h2 className="m-0 text-lg sm:text-xl font-bold text-gray-900 dark:text-white">AGENDA</h2>
                         </div>
                         <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 no-scrollbar">
-                            <button
-                                onClick={handleEnviarRecordatoriosManana}
-                                disabled={isSendingReminders}
-                                className={`flex-shrink-0 px-3 py-1.5 text-white rounded font-bold transition-all text-xs sm:text-sm shadow-md flex items-center gap-1 ${isSendingReminders ? 'bg-green-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'}`}
-                                title="Enviar WhatsApp de confirmación para citas de mañana"
-                            >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                                </svg>
-                                Recordatorios
-                            </button>
+
                             <button
                                 onClick={() => setShowQuienAgendoModal(true)}
                                 className="flex-shrink-0 px-3 py-1.5 bg-purple-500 hover:bg-purple-600 text-white rounded font-bold transition-all text-xs sm:text-sm shadow-md"
@@ -749,10 +746,10 @@ const AgendaView: React.FC = () => {
                                                                         {appointment.observaciones}
                                                                     </div>
                                                                 )}
-                                                                <div className="text-[9px] mt-0.5 font-bold uppercase opacity-80 flex items-center gap-1">
+                                                                <div className="text-[9px] mt-0.5 font-bold uppercase opacity-80 flex items-center justify-between gap-1 w-full">
                                                                     <select
                                                                         value={appointment.estado}
-                                                                        className="bg-black/20 hover:bg-black/30 text-white border-none rounded px-1 py-0.5 cursor-pointer focus:ring-1 focus:ring-white/50 text-[9px] font-bold outline-none appearance-none"
+                                                                        className="bg-black/20 hover:bg-black/30 text-white border-none rounded px-1 py-0.5 cursor-pointer focus:ring-1 focus:ring-white/50 text-[9px] font-bold outline-none appearance-none flex-1 min-w-0 mr-1"
                                                                         onClick={(e) => e.stopPropagation()}
                                                                         onChange={(e) => handleStatusChange(appointment.id, e.target.value, e)}
                                                                     >
@@ -762,6 +759,26 @@ const AgendaView: React.FC = () => {
                                                                         <option value="no asistio" className="bg-orange-600">NO ASISTIÓ</option>
                                                                         <option value="cancelado" className="bg-red-600">CANCELADO</option>
                                                                     </select>
+                                                                    {appointment.paciente && appointment.estado === 'agendado' && (
+                                                                        <button
+                                                                            onClick={(e) => handleEnviarRecordatorioIndividual(appointment.id, e)}
+                                                                            className={`p-1 bg-green-500 hover:bg-green-600 active:bg-green-700 text-white rounded flex items-center justify-center transition-all flex-shrink-0 cursor-pointer ${appointment.recordatorioEnviado ? 'opacity-60 bg-green-600' : ''}`}
+                                                                            title={appointment.recordatorioEnviado ? "Recordatorio ya enviado por WhatsApp. Clic para volver a enviar." : "Enviar recordatorio por WhatsApp"}
+                                                                            style={{ border: 'none' }}
+                                                                        >
+                                                                            {appointment.recordatorioEnviado ? (
+                                                                                <span className="flex items-center gap-0.5">
+                                                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                                    </svg>
+                                                                                </span>
+                                                                            ) : (
+                                                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                                                                </svg>
+                                                                            )}
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         )}
