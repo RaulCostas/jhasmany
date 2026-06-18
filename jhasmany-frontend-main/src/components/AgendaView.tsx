@@ -676,7 +676,7 @@ const AgendaView: React.FC = () => {
 
                     <div className="flex-1 overflow-x-auto overflow-y-auto relative bg-white dark:bg-gray-800 flex flex-col">
                         {viewMode === 'day' ? (
-                            <table className="min-w-[800px] w-full border-collapse table-fixed">
+                            <table className="w-full border-collapse table-fixed">
                                 <thead className="sticky top-0 bg-gray-50 dark:bg-gray-700 z-10 shadow-sm">
                                     <tr>
                                         <th className="border border-gray-300 dark:border-gray-600 p-2 text-center font-bold text-gray-700 dark:text-gray-200 w-20 text-[10px] sm:text-xs">HORA</th>
