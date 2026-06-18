@@ -428,7 +428,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
             } else if (respuesta === 'b') {
                 try {
                     await this.agendaService.update(currentSession.citaId, { estado: 'cancelado' } as any);
-                    await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario');
+                    await this.sendMessage(remoteJid, 'Por favor, comuníquese con el Dr. para agendar su cita en otra fecha y horario, gracias');
                 } catch (err) {}
                 session.userSessions.delete(remoteJid);
                 return;
@@ -569,7 +569,7 @@ export class ChatbotService implements OnModuleInit, OnModuleDestroy {
         } else if (selectedOption.includes('Cancelar')) {
             try {
                 await this.agendaService.update(citaId, { estado: 'cancelado' } as any);
-                await this.sendMessage(remoteJid, 'Por favor, comuníquese con la Clínica para agendar su cita en otra fecha y horario');
+                await this.sendMessage(remoteJid, 'Por favor, comuníquese con el Dr. para agendar su cita en otra fecha y horario, gracias');
             } catch (err) {}
         }
     }
