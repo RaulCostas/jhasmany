@@ -1,5 +1,15 @@
 import 'dotenv/config'; // Cargar variables de entorno
 process.env.TZ = 'America/Lima'; // Configurar zona horaria local
+
+// Evitar que excepciones y promesas no capturadas (como errores de encriptacion de Baileys) tumben el servidor
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UnhandledRejection] Promesa no capturada en:', promise, 'razon:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[UncaughtException] Excepcion no capturada:', error);
+});
+
 import { NestFactory } from '@nestjs/core'; // Force Rebuild 5
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
