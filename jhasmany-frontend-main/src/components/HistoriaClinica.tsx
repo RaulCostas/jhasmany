@@ -192,6 +192,7 @@ const HistoriaClinica: React.FC = () => {
 
         // Header
         const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
         doc.setDrawColor(52, 152, 219); // #3498db
         doc.setLineWidth(1);
         doc.line(15, 35, pageWidth - 15, 35);
@@ -224,17 +225,37 @@ const HistoriaClinica: React.FC = () => {
             : 'N/A';
         doc.text(pacienteNombre.toUpperCase(), 45, boxY + 6);
 
+        // Helper function to draw fields dynamically with auto-wrapping and page breaks
+        const drawField = (label: string, value: string, y: number): number => {
+            const maxWidth = pageWidth - 15 - 45; // 210 - 15 - 45 = 150mm max line width
+            const lines = doc.splitTextToSize(value || '-', maxWidth);
+            const lineHeight = 4.5;
+            const blockHeight = lines.length * lineHeight;
+
+            // Check if this field exceeds page boundary (bottom margin of 15mm)
+            if (y + blockHeight > pageHeight - 15) {
+                doc.addPage();
+                y = 20; // reset y to top margin of the new page
+            }
+
+            doc.setFont('helvetica', 'bold');
+            doc.text(label, 15, y);
+
+            doc.setFont('helvetica', 'normal');
+            doc.text(lines, 45, y);
+
+            return y + blockHeight + 1.5; // return next y position (blockHeight + 1.5mm padding)
+        };
+
         // Progress Notes Rendering
         if (filteredHistoria.length > 0) {
             let currentY = boxY + boxHeight + 10;
-            const pageHeight = doc.internal.pageSize.height;
 
             filteredHistoria.forEach(item => {
                 const title = `CONSULTA - ${formatDate(item.fecha)} (${item.servicio || ''} - ${item.modalidad || ''})`;
                 
-                // Estimate block height to handle pagination
-                const blockHeight = 60; 
-                if (currentY + blockHeight > pageHeight) {
+                // Ensure title and the first couple of fields start on the same page
+                if (currentY + 25 > pageHeight - 15) {
                     doc.addPage();
                     currentY = 20;
                 }
@@ -247,51 +268,28 @@ const HistoriaClinica: React.FC = () => {
                 doc.setFontSize(9);
                 
                 currentY += 6;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Motivo de visita: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.motivo_visita || '-', 45, currentY);
-                
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Examen Físico: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.examen_fisico || '-', 45, currentY);
+                currentY = drawField('Motivo de visita: ', item.motivo_visita || '-', currentY);
+                currentY = drawField('Examen Físico: ', item.examen_fisico || '-', currentY);
+                currentY = drawField('Examen Mental: ', item.examen_mental || '-', currentY);
+                currentY = drawField('Exámenes Aux: ', item.examenes_auxiliares || '-', currentY);
 
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Examen Mental: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.examen_mental || '-', 45, currentY);
-
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Exámenes Aux: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.examenes_auxiliares || '-', 45, currentY);
-
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Diagnósticos: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
                 const diagsStr = (item.diagnosticos || []).map(d => `${d.diagnostico} (${d.tipo})`).join(', ') || '-';
-                doc.text(diagsStr, 45, currentY);
+                currentY = drawField('Diagnósticos: ', diagsStr, currentY);
 
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Plan de Trabajo: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.plan_trabajo || '-', 45, currentY);
+                currentY = drawField('Plan de Trabajo: ', item.plan_trabajo || '-', currentY);
 
-                currentY += 5;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Derivación: ', 15, currentY);
-                doc.setFont('helvetica', 'normal');
-                doc.text(item.derivar_consulta === 'SI' ? `SÍ (${item.derivar_consulta_detalle || ''})` : 'NO', 45, currentY);
+                const derivacionStr = item.derivar_consulta === 'SI' ? `SÍ (${item.derivar_consulta_detalle || ''})` : 'NO';
+                currentY = drawField('Derivación: ', derivacionStr, currentY);
 
-                currentY += 10;
-                doc.setDrawColor(220, 220, 220);
-                doc.line(15, currentY - 4, doc.internal.pageSize.width - 15, currentY - 4);
+                currentY += 2;
+                if (currentY > pageHeight - 15) {
+                    doc.addPage();
+                    currentY = 20;
+                } else {
+                    doc.setDrawColor(220, 220, 220);
+                    doc.line(15, currentY, pageWidth - 15, currentY);
+                    currentY += 8;
+                }
             });
         }
 
