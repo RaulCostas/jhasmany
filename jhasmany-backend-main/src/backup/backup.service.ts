@@ -90,7 +90,7 @@ export class BackupService {
 
     async createBackup(createBackupDto?: CreateBackupDto): Promise<BackupInfo> {
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-        const filename = `clinicas_lens_backup_${timestamp}.sql`;
+        const filename = `${this.dbName || 'jhasmany'}_backup_${timestamp}.sql`;
         const targetDir = createBackupDto?.customPath || this.backupDir;
         const backupPath = path.join(targetDir, filename);
 
