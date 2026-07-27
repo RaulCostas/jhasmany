@@ -116,4 +116,68 @@ export class SupabaseStorageService {
       this.logger.error(`Error deleting from Supabase: ${error.message}`);
     }
   }
+
+  async listFilesInBucket(bucket: string): Promise<Array<{ name: string; size: number; createdAt: string }>> {
+    if (this.useLocal || !this.supabase) {
+      return [];
+    }
+
+    try {
+      const { data, error } = await this.supabase.storage.from(bucket).list('', {
+        sortBy: { column: 'created_at', order: 'desc' },
+      });
+
+      if (error) {
+        this.logger.error(`Error listing files from Supabase bucket (${bucket}): ${error.message}`);
+        return [];
+      }
+
+      return (data || [])
+        .filter((file) => file.name && file.name !== '.emptyFolderPlaceholder')
+        .map((file) => ({
+          name: file.name,
+          size: file.metadata?.size || 0,
+          createdAt: file.created_at || file.updated_at || new Date().toISOString(),
+        }));
+    } catch (err: any) {
+      this.logger.error(`Error in listFilesInBucket (${bucket}): ${err?.message}`);
+      return [];
+    }
+  }
+
+  async downloadFileFromBucket(bucket: string, fileName: string): Promise<Buffer | null> {
+    if (this.useLocal || !this.supabase) {
+      return null;
+    }
+
+    try {
+      const { data, error } = await this.supabase.storage.from(bucket).download(fileName);
+      if (error || !data) {
+        this.logger.error(`Error downloading file ${fileName} from Supabase bucket ${bucket}: ${error?.message}`);
+        return null;
+      }
+
+      const arrayBuffer = await data.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (err: any) {
+      this.logger.error(`Error in downloadFileFromBucket (${bucket}/${fileName}): ${err?.message}`);
+      return null;
+    }
+  }
+
+  async deleteFileFromBucket(bucket: string, fileName: string): Promise<void> {
+    if (this.useLocal || !this.supabase) {
+      return;
+    }
+
+    try {
+      const { error } = await this.supabase.storage.from(bucket).remove([fileName]);
+      if (error) {
+        this.logger.error(`Error deleting file ${fileName} from Supabase bucket ${bucket}: ${error.message}`);
+      }
+    } catch (err: any) {
+      this.logger.error(`Error in deleteFileFromBucket (${bucket}/${fileName}): ${err?.message}`);
+    }
+  }
 }
+

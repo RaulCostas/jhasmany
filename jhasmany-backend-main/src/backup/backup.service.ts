@@ -4,6 +4,7 @@ import { promisify } from 'util';
 import * as fs from 'fs';
 import * as path from 'path';
 import { CreateBackupDto } from './dto/create-backup.dto';
+import { SupabaseStorageService } from '../common/storage/supabase-storage.service';
 
 const execAsync = promisify(exec);
 
@@ -24,8 +25,11 @@ export class BackupService {
     private readonly dbPassword: string;
     private readonly pgDumpPath: string;
     private readonly psqlPath: string;
+    private readonly bucketName = 'backups';
 
-    constructor() {
+    constructor(
+        private readonly supabaseStorageService: SupabaseStorageService,
+    ) {
         const isWindows = process.platform === 'win32';
 
         // Default backup directory - production ready path
@@ -117,6 +121,22 @@ export class BackupService {
             // Get file stats
             const stats = fs.statSync(backupPath);
 
+            // Upload backup to Supabase Storage if customPath is not specified
+            if (!createBackupDto?.customPath) {
+                try {
+                    const fileBuffer = fs.readFileSync(backupPath);
+                    await this.supabaseStorageService.uploadFile(
+                        this.bucketName,
+                        filename,
+                        fileBuffer,
+                        'application/x-sql',
+                    );
+                    console.log(`Backup ${filename} uploaded successfully to Supabase Storage.`);
+                } catch (cloudErr) {
+                    console.error('Warning: Failed to upload backup to Supabase Storage:', cloudErr);
+                }
+            }
+
             return {
                 filename,
                 size: stats.size,
@@ -131,26 +151,44 @@ export class BackupService {
 
     async listBackups(): Promise<BackupInfo[]> {
         try {
-            if (!fs.existsSync(this.backupDir)) {
-                return [];
-            }
+            const backupsMap = new Map<string, BackupInfo>();
 
-            const files = fs.readdirSync(this.backupDir);
-            const backups: BackupInfo[] = [];
+            // 1. Read local backups
+            if (fs.existsSync(this.backupDir)) {
+                const files = fs.readdirSync(this.backupDir);
+                for (const file of files) {
+                    if (file.endsWith('.sql')) {
+                        const filePath = path.join(this.backupDir, file);
+                        const stats = fs.statSync(filePath);
 
-            for (const file of files) {
-                if (file.endsWith('.sql')) {
-                    const filePath = path.join(this.backupDir, file);
-                    const stats = fs.statSync(filePath);
-
-                    backups.push({
-                        filename: file,
-                        size: stats.size,
-                        createdAt: stats.birthtime.toISOString(),
-                        path: filePath,
-                    });
+                        backupsMap.set(file, {
+                            filename: file,
+                            size: stats.size,
+                            createdAt: stats.birthtime.toISOString(),
+                            path: filePath,
+                        });
+                    }
                 }
             }
+
+            // 2. Fetch remote backups from Supabase Storage
+            try {
+                const remoteFiles = await this.supabaseStorageService.listFilesInBucket(this.bucketName);
+                for (const remote of remoteFiles) {
+                    if (remote.name.endsWith('.sql') && !backupsMap.has(remote.name)) {
+                        backupsMap.set(remote.name, {
+                            filename: remote.name,
+                            size: remote.size,
+                            createdAt: remote.createdAt,
+                            path: path.join(this.backupDir, remote.name),
+                        });
+                    }
+                }
+            } catch (cloudErr) {
+                console.error('Warning: Failed to list remote backups from Supabase Storage:', cloudErr);
+            }
+
+            const backups = Array.from(backupsMap.values());
 
             // Sort by creation date, newest first
             return backups.sort((a, b) =>
@@ -164,6 +202,22 @@ export class BackupService {
 
     async getBackupInfo(filename: string): Promise<BackupInfo> {
         const filePath = path.join(this.backupDir, filename);
+
+        // If file doesn't exist locally, try downloading from Supabase Storage
+        if (!fs.existsSync(filePath)) {
+            try {
+                const buffer = await this.supabaseStorageService.downloadFileFromBucket(this.bucketName, filename);
+                if (buffer) {
+                    if (!fs.existsSync(this.backupDir)) {
+                        fs.mkdirSync(this.backupDir, { recursive: true });
+                    }
+                    fs.writeFileSync(filePath, buffer);
+                    console.log(`Downloaded ${filename} from Supabase Storage to local directory.`);
+                }
+            } catch (cloudErr) {
+                console.error(`Failed to download ${filename} from Supabase Storage:`, cloudErr);
+            }
+        }
 
         if (!fs.existsSync(filePath)) {
             throw new NotFoundException(`Backup file ${filename} not found`);
@@ -180,11 +234,9 @@ export class BackupService {
     }
 
     async restoreBackup(filename: string): Promise<{ message: string }> {
-        const filePath = path.join(this.backupDir, filename);
-
-        if (!fs.existsSync(filePath)) {
-            throw new NotFoundException(`Backup file ${filename} not found`);
-        }
+        // Ensures backup file is available locally (downloads from Supabase Storage if missing)
+        const backupInfo = await this.getBackupInfo(filename);
+        const filePath = backupInfo.path;
 
         try {
             // Check if psql exists (only if absolute path is provided)
@@ -226,16 +278,31 @@ export class BackupService {
     async deleteBackup(filename: string): Promise<{ message: string }> {
         const filePath = path.join(this.backupDir, filename);
 
-        if (!fs.existsSync(filePath)) {
+        let deletedAny = false;
+
+        // 1. Delete local file if exists
+        if (fs.existsSync(filePath)) {
+            try {
+                fs.unlinkSync(filePath);
+                deletedAny = true;
+            } catch (err) {
+                console.error(`Error unlinking local backup file ${filename}:`, err);
+            }
+        }
+
+        // 2. Delete remote file from Supabase Storage
+        try {
+            await this.supabaseStorageService.deleteFileFromBucket(this.bucketName, filename);
+            deletedAny = true;
+        } catch (cloudErr) {
+            console.error(`Error deleting backup ${filename} from Supabase Storage:`, cloudErr);
+        }
+
+        if (!deletedAny) {
             throw new NotFoundException(`Backup file ${filename} not found`);
         }
 
-        try {
-            fs.unlinkSync(filePath);
-            return { message: `Backup ${filename} deleted successfully` };
-        } catch (error) {
-            console.error('Error deleting backup:', error);
-            throw new InternalServerErrorException('Failed to delete backup');
-        }
+        return { message: `Backup ${filename} deleted successfully` };
     }
 }
+
