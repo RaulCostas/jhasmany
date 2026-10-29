@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { formatFullName } from '../utils/formatters';
-import type { GastoFijo, Recordatorio, RecordatorioTratamiento } from '../types';
+import type { GastoFijo, Recordatorio, RecordatorioTratamiento, AtendidosAyerSummary } from '../types';
 
 import { getLocalDateString, formatDate } from '../utils/dateUtils';
 
@@ -17,10 +17,10 @@ const Home: React.FC = () => {
 
     const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([]);
     const [tratamientosPendientes, setTratamientosPendientes] = useState<RecordatorioTratamiento[]>([]);
+    const [atendidosAyer, setAtendidosAyer] = useState<AtendidosAyerSummary>({ fecha: '', total: 0, pacientes: [] });
     const [sendingGreeting, setSendingGreeting] = useState<number[]>([]);
     const [isGastoModalOpen, setIsGastoModalOpen] = useState(false);
     const [selectedGasto, setSelectedGasto] = useState<GastoFijo | null>(null);
-
 
     const [loading, setLoading] = useState(true);
 
@@ -50,6 +50,9 @@ const Home: React.FC = () => {
             setDueGastos(data.dueGastos);
             setRecordatorios(data.reminders);
             setTratamientosPendientes(data.pendingTreatments);
+            if (data.atendidosAyer) {
+                setAtendidosAyer(data.atendidosAyer);
+            }
         } catch (error) {
             console.error('Error fetching dashboard summary:', error);
         } finally {
@@ -65,8 +68,6 @@ const Home: React.FC = () => {
             console.error('Error al completar tratamiento:', error);
         }
     };
-
-
 
     const handleCompletarRecordatorioGeneral = async (id: number) => {
         try {
@@ -89,7 +90,6 @@ const Home: React.FC = () => {
     };
 
     const handleSendGreeting = async (paciente: any) => {
-
         setSendingGreeting((prev) => [...prev, paciente.id]);
         try {
             await api.post(`/chatbot/send-birthday/${paciente.id}`, { clinicName: 'JHASMANY' });
@@ -123,8 +123,6 @@ const Home: React.FC = () => {
         }
     };
 
-    // Removed explicit loading spinner to satisfy user preference for immediate transition
-
     return (
         <div className="content-card dark:bg-gray-800 p-8 rounded-xl shadow-sm transition-colors duration-200">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2 text-center">
@@ -134,7 +132,90 @@ const Home: React.FC = () => {
                 Sistema de Gestión
             </p>
 
+            {/* Pacientes Atendidos Ayer Section */}
+            {hasAccess('dashboard_atendidos_ayer') && atendidosAyer.pacientes.length > 0 && (
+                <div className="mb-8 bg-teal-50 dark:bg-teal-900/20 border-l-4 border-teal-500 p-6 rounded-r-lg shadow-sm">
+                    <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+                        <h2 className="text-xl font-bold text-teal-800 dark:text-teal-300 flex items-center gap-2">
+                            <span>🩺</span> Pacientes Atendidos el Día de Ayer {atendidosAyer.fecha ? `(${formatDate(atendidosAyer.fecha)})` : ''}
+                        </h2>
+                        <span className="px-3 py-1 bg-teal-100 dark:bg-teal-800 text-teal-800 dark:text-teal-100 rounded-full text-xs font-bold">
+                            {atendidosAyer.total} {atendidosAyer.total === 1 ? 'paciente' : 'pacientes'}
+                        </span>
+                    </div>
+                    <div className="space-y-3">
+                        {atendidosAyer.pacientes.map((item) => (
+                            <div
+                                key={item.pacienteId}
+                                className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white dark:bg-gray-700 p-4 rounded-lg shadow-sm border border-gray-100 dark:border-gray-600 gap-3 hover:border-teal-300 dark:hover:border-teal-500 transition-all"
+                            >
+                                <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                                        {item.origenes.map((orig, idx) => (
+                                            <span
+                                                key={idx}
+                                                className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                                                    orig === 'Historia Clínica'
+                                                        ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                                        : orig === 'Paciente Nuevo'
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200'
+                                                        : 'bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200'
+                                                }`}
+                                            >
+                                                {orig === 'Historia Clínica' && '📋 '}
+                                                {orig === 'Paciente Nuevo' && '✨ '}
+                                                {orig === 'Cita en Agenda' && '📅 '}
+                                                {orig}
+                                            </span>
+                                        ))}
+                                        {item.hora && (
+                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                ⏰ {item.hora}
+                                            </span>
+                                        )}
+                                    </div>
 
+                                    {/* Nombre del paciente clickeable que redirige a /pacientes/:id/ficha */}
+                                    <div className="mb-1">
+                                        <span
+                                            onClick={() => navigate(`/pacientes/${item.pacienteId}/ficha`)}
+                                            className="font-bold text-lg text-teal-600 dark:text-teal-300 hover:text-teal-800 dark:hover:text-teal-100 hover:underline cursor-pointer transition-colors inline-block"
+                                            title="Haga clic para ver la ficha del paciente"
+                                        >
+                                            {formatFullName(item.paciente)}
+                                        </span>
+                                    </div>
+
+                                    <div className="text-xs text-gray-600 dark:text-gray-300 flex flex-wrap gap-x-4 gap-y-1">
+                                        {item.doctor && (
+                                            <span><strong className="text-gray-700 dark:text-gray-200">Doctor:</strong> {item.doctor}</span>
+                                        )}
+                                        {item.servicio && (
+                                            <span><strong className="text-gray-700 dark:text-gray-200">Detalle:</strong> {item.servicio}</span>
+                                        )}
+                                        {item.paciente.telefono_celular && (
+                                            <span><strong className="text-gray-700 dark:text-gray-200">Cel:</strong> {item.paciente.telefono_celular}</span>
+                                        )}
+                                        {item.paciente.dni && (
+                                            <span><strong className="text-gray-700 dark:text-gray-200">DNI:</strong> {item.paciente.dni}</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2 self-end sm:self-center">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate(`/pacientes/${item.pacienteId}/ficha`)}
+                                        className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 active:bg-teal-800 text-white rounded-lg text-xs font-semibold flex items-center gap-1 shadow transition-all cursor-pointer"
+                                    >
+                                        <span>👤</span> Ver Ficha
+                                    </button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Recordatorios Section */}
             {hasAccess('dashboard_recordatorios') && recordatorios.length > 0 && (
@@ -244,10 +325,6 @@ const Home: React.FC = () => {
                 </div>
             )}
 
-
-
-
-
             {/* Expenses Due Today Section */}
             {hasAccess('dashboard_gastos_vencidos') && dueGastos.length > 0 && (
                 <div className="mb-8 bg-pink-50 dark:bg-pink-900/20 border-l-4 border-pink-500 p-6 rounded-r-lg shadow-sm">
@@ -284,8 +361,6 @@ const Home: React.FC = () => {
                     </div>
                 </div>
             )}
-
-
 
             {/* Patient Birthday Section */}
             {hasAccess('dashboard_cumpleanos') && stats.birthdayPacientes.length > 0 && (
@@ -330,9 +405,6 @@ const Home: React.FC = () => {
                 </div>
             )}
 
-
-
-
             <div className="mt-12 flex justify-center gap-6 flex-wrap">
                 <div className="p-6 bg-blue-500 text-white rounded-xl w-52 text-center shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1 duration-200">
                     <h3 className="mb-2 text-lg font-medium opacity-90">Pacientes</h3>
@@ -342,6 +414,15 @@ const Home: React.FC = () => {
                     <div className="p-6 bg-green-500 text-white rounded-xl w-52 text-center shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1 duration-200">
                         <h3 className="mb-2 text-lg font-medium opacity-90">Citas Hoy</h3>
                         <p className="text-3xl font-bold">{todayAppointmentsCount}</p>
+                    </div>
+                )}
+                {hasAccess('dashboard_atendidos_ayer') && (
+                    <div className="p-6 bg-teal-600 text-white rounded-xl w-52 text-center shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1 duration-200">
+                        <h3 className="mb-2 text-lg font-medium opacity-90">Atendidos Ayer</h3>
+                        <p className="text-3xl font-bold">{atendidosAyer.total}</p>
+                        {atendidosAyer.fecha && (
+                            <p className="text-xs opacity-80 mt-1">{formatDate(atendidosAyer.fecha)}</p>
+                        )}
                     </div>
                 )}
             </div>

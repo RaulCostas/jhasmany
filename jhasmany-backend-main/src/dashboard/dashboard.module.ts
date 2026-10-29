@@ -6,6 +6,7 @@ import { AgendaModule } from '../agenda/agenda.module';
 import { GastosFijosModule } from '../gastos_fijos/gastos_fijos.module';
 import { RecordatorioModule } from '../recordatorio/recordatorio.module';
 import { RecordatorioTratamientoModule } from '../recordatorio-tratamiento/recordatorio-tratamiento.module';
+import { HistoriaClinicaModule } from '../historia_clinica/historia_clinica.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RecordatorioTratamientoModule } from '../recordatorio-tratamiento/recor
     GastosFijosModule,
     RecordatorioModule,
     RecordatorioTratamientoModule,
+    HistoriaClinicaModule,
   ],
   controllers: [DashboardController],
   providers: [DashboardService],

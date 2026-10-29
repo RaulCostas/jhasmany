@@ -80,6 +80,7 @@ const PermisosModal: React.FC<PermisosModalProps> = ({ user, isOpen, onClose, on
         {
             title: 'Mensajes de Inicio (Dashboard)',
             items: [
+                { id: 'dashboard_atendidos_ayer', label: 'Pacientes Atendidos Ayer' },
                 { id: 'dashboard_cumpleanos', label: 'Cumpleaños de Pacientes Hoy' },
                 { id: 'dashboard_gastos_vencidos', label: 'Gastos Fijos por Pagar Hoy' },
                 { id: 'dashboard_citas_hoy', label: 'Citas Hoy (Estadística Rápida)' },

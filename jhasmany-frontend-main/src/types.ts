@@ -653,3 +653,28 @@ export interface Seguro {
 }
 
 
+
+export interface PacienteAtendidoAyer {
+    pacienteId: number;
+    paciente: {
+        id: number;
+        nombre: string;
+        paterno: string;
+        materno: string;
+        dni?: string;
+        telefono_celular?: string;
+        email?: string;
+    };
+    doctor?: string;
+    hora?: string;
+    origenes: string[];
+    servicio?: string;
+    motivo?: string;
+    tipoAtencion: string;
+}
+
+export interface AtendidosAyerSummary {
+    fecha: string;
+    total: number;
+    pacientes: PacienteAtendidoAyer[];
+}
