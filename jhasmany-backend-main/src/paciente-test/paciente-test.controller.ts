@@ -10,8 +10,9 @@ export class PacienteTestController {
     create(
         @Body('pacienteId') pacienteId: number,
         @Body('doctorId') doctorId?: number,
+        @Body('nombreTest') nombreTest?: string,
     ) {
-        return this.testService.create(Number(pacienteId), doctorId ? Number(doctorId) : undefined);
+        return this.testService.create(Number(pacienteId), doctorId ? Number(doctorId) : undefined, nombreTest);
     }
 
     // Send test link via WhatsApp to the patient and associate doctor
@@ -40,9 +41,18 @@ export class PacienteTestController {
     @Post('public/:token/responder')
     submitAnswers(
         @Param('token') token: string,
-        @Body('respuestas') respuestas: Record<number, number>,
+        @Body('respuestas') respuestas: any,
     ) {
         return this.testService.submitAnswers(token, respuestas);
+    }
+
+    // 4.1 Submit Explorando Valores game answers
+    @Post('public/:token/responder-valores')
+    submitValores(
+        @Param('token') token: string,
+        @Body() body: any,
+    ) {
+        return this.testService.submitValores(token, body);
     }
 
     // 5. Delete a test (only if not completed)

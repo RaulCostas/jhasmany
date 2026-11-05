@@ -4,11 +4,12 @@ import api from '../services/api';
 import { 
     ClipboardList, Send, Copy, Eye, Plus, X, 
     ExternalLink, CheckCircle, Clock, Award, HelpCircle,
-    MessageCircle, Trash2
+    MessageCircle, Trash2, Sparkles
 } from 'lucide-react';
 import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import Pagination from './Pagination';
+import ValoresResultadosModal from './ValoresResultadosModal';
 
 interface PacienteTest {
     id: number;
@@ -64,10 +65,13 @@ const PacienteTabTest: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [showLinkModal, setShowLinkModal] = useState(false);
     const [generatedToken, setGeneratedToken] = useState('');
+    const [generatedTestName, setGeneratedTestName] = useState('Escala de Autoestima de Rosenberg');
     const [showDetailModal, setShowDetailModal] = useState(false);
+    const [showValoresModal, setShowValoresModal] = useState(false);
     const [selectedTest, setSelectedTest] = useState<PacienteTest | null>(null);
     const [copied, setCopied] = useState(false);
     const [showManual, setShowManual] = useState(false);
+    const [paciente, setPaciente] = useState<any>(null);
 
     // Doctor selection state for WhatsApp sending
     const [doctors, setDoctors] = useState<Doctor[]>([]);
@@ -81,18 +85,28 @@ const PacienteTabTest: React.FC = () => {
 
     const manualSections: ManualSection[] = [
         {
-            title: 'Historial de Tests',
-            content: 'En esta pestaña puede ver todos los tests enviados y completados por el paciente, con sus puntajes e interpretaciones.'
+            title: 'Historial de Tests y Dinámicas',
+            content: 'En esta pestaña puede ver todos los tests y dinámicas enviadas y completadas por el paciente, con sus puntajes, resultados e interpretaciones.'
         },
         {
-            title: 'Generar Enlace de Test',
-            content: 'Use el botón "Generar Enlace de Test" para crear un link único y seguro. Copie este enlace para compartirlo con el paciente por WhatsApp, correo u otro medio.'
+            title: 'Generar Enlace',
+            content: 'Use los botones de generación ("Test Autoestima" o "Explorando Valores") para crear un link único y seguro para compartirlo con el paciente.'
         },
         {
             title: 'Ver Resultados',
-            content: 'Haga clic en el botón "Ver Resultados" en los tests completados para ver el puntaje final, la interpretación clínica y el desglose detallado de las respuestas a cada pregunta.'
+            content: 'Haga clic en el botón "Ver Resultados" en los registros completados para ver el detalle de respuestas o el reporte interactivo de la dinámica de valores con opción a imprimir.'
         }
     ];
+
+    const fetchPaciente = async () => {
+        if (!id) return;
+        try {
+            const res = await api.get(`/pacientes/${id}`);
+            setPaciente(res.data);
+        } catch (error) {
+            console.error("Error fetching patient:", error);
+        }
+    };
 
     const fetchTests = async () => {
         if (!id) return;
@@ -128,13 +142,14 @@ const PacienteTabTest: React.FC = () => {
     useEffect(() => {
         fetchTests();
         fetchDoctors();
+        fetchPaciente();
     }, [id]);
 
-    const handleGenerateTest = async () => {
+    const handleGenerateTest = async (nombreTest: string = 'Escala de Autoestima de Rosenberg') => {
         if (!id) return;
         try {
             Swal.fire({
-                title: 'Generando test...',
+                title: 'Generando enlace...',
                 text: 'Espere por favor',
                 allowOutsideClick: false,
                 didOpen: () => {
@@ -142,10 +157,14 @@ const PacienteTabTest: React.FC = () => {
                 }
             });
 
-            const res = await api.post('/paciente-test/enviar', { pacienteId: Number(id) });
+            const res = await api.post('/paciente-test/enviar', { 
+                pacienteId: Number(id),
+                nombreTest 
+            });
             Swal.close();
 
             setGeneratedToken(res.data.token);
+            setGeneratedTestName(res.data.nombreTest || nombreTest);
             setShowLinkModal(true);
             setCopied(false);
             fetchTests();
@@ -161,12 +180,15 @@ const PacienteTabTest: React.FC = () => {
         }
     };
 
-    const getTestLink = (token: string) => {
+    const getTestLink = (token: string, nombreTest?: string) => {
+        if (nombreTest && nombreTest.toLowerCase().includes('valores')) {
+            return `${window.location.origin}/juego-valores/${token}`;
+        }
         return `${window.location.origin}/test-publico/${token}`;
     };
 
-    const handleCopyLink = (token: string) => {
-        const url = getTestLink(token);
+    const handleCopyLink = (token: string, nombreTest?: string) => {
+        const url = getTestLink(token, nombreTest);
         navigator.clipboard.writeText(url)
             .then(() => {
                 setCopied(true);
@@ -266,7 +288,11 @@ const PacienteTabTest: React.FC = () => {
 
     const handleViewDetails = (test: PacienteTest) => {
         setSelectedTest(test);
-        setShowDetailModal(true);
+        if (test.nombreTest && test.nombreTest.toLowerCase().includes('valores')) {
+            setShowValoresModal(true);
+        } else {
+            setShowDetailModal(true);
+        }
     };
 
     const calculateQuestionPoints = (qId: number, selection: number, type: string) => {
@@ -289,13 +315,13 @@ const PacienteTabTest: React.FC = () => {
                 <div>
                     <h2 className="text-xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
                         <HelpCircle size={22} className="text-blue-500" />
-                        Historial de Tests Psicológicos
+                        Historial de Tests Psicológicos y Dinámicas
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Gestión y envío de la Escala de Autoestima de Rosenberg.
+                        Gestión y envío de tests psicológicos y dinámicas terapéuticas (Rosenberg, Explorando Valores).
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         onClick={() => setShowManual(true)}
                         className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
@@ -304,10 +330,16 @@ const PacienteTabTest: React.FC = () => {
                         ?
                     </button>
                     <button
-                        onClick={handleGenerateTest}
-                        className="bg-[#3498db] hover:bg-blue-600 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-2 text-sm"
+                        onClick={() => handleGenerateTest('Escala de Autoestima de Rosenberg')}
+                        className="bg-[#3498db] hover:bg-blue-600 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 text-xs"
                     >
-                        <Plus size={18} /> Generar Enlace de Test
+                        <Plus size={16} /> Autoestima (Rosenberg)
+                    </button>
+                    <button
+                        onClick={() => handleGenerateTest('Explorando Valores')}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-2 px-3.5 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 text-xs shadow-purple-500/20"
+                    >
+                        <Sparkles size={16} /> Juego: Explorando Valores
                     </button>
                 </div>
             </div>
@@ -319,13 +351,21 @@ const PacienteTabTest: React.FC = () => {
             ) : tests.length === 0 ? (
                 <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-xl">
                     <ClipboardList size={48} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-                    <p className="text-gray-500 dark:text-gray-400 font-medium">No se han enviado tests a este paciente todavía</p>
-                    <button
-                        onClick={handleGenerateTest}
-                        className="mt-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-semibold py-2 px-4 rounded-lg transition-colors text-xs"
-                    >
-                        Generar el primer enlace ahora
-                    </button>
+                    <p className="text-gray-500 dark:text-gray-400 font-medium">No se han enviado tests ni dinámicas a este paciente todavía</p>
+                    <div className="mt-4 flex flex-wrap justify-center gap-3">
+                        <button
+                            onClick={() => handleGenerateTest('Escala de Autoestima de Rosenberg')}
+                            className="bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 dark:text-blue-300 font-semibold py-2 px-4 rounded-xl transition-colors text-xs flex items-center gap-1.5"
+                        >
+                            <Plus size={14} /> Autoestima de Rosenberg
+                        </button>
+                        <button
+                            onClick={() => handleGenerateTest('Explorando Valores')}
+                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:hover:bg-purple-900/50 dark:text-purple-300 font-semibold py-2 px-4 rounded-xl transition-colors text-xs flex items-center gap-1.5"
+                        >
+                            <Sparkles size={14} /> Juego: Explorando Valores
+                        </button>
+                    </div>
                 </div>
             ) : (
                 <div className="space-y-4">
@@ -340,7 +380,7 @@ const PacienteTabTest: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                             <thead className="bg-gray-50 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                                 <tr>
-                                    {['Nombre del Test', 'Fecha de Envío', 'Estado', 'Fecha Completado', 'Puntaje', 'Acciones'].map(h => (
+                                    {['Nombre del Test / Dinámica', 'Fecha de Envío', 'Estado', 'Fecha Completado', 'Puntaje / Resultado', 'Acciones'].map(h => (
                                         <th key={h} className="px-4 py-3.5 text-left text-[11px] font-bold uppercase tracking-wider">{h}</th>
                                     ))}
                                 </tr>
@@ -348,10 +388,18 @@ const PacienteTabTest: React.FC = () => {
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300">
                                 {paginatedTests.map(test => {
                                     const isCompletado = test.estado === 'completado';
+                                    const isValores = test.nombreTest?.toLowerCase().includes('valores');
                                     return (
                                         <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                                             <td className="px-4 py-3 text-sm font-semibold">
-                                                <div>{test.nombreTest}</div>
+                                                <div className="flex items-center gap-1.5">
+                                                    {isValores && (
+                                                        <Sparkles size={15} className="text-purple-500 flex-shrink-0" />
+                                                    )}
+                                                    <span className={isValores ? 'text-purple-900 dark:text-purple-200 font-bold' : ''}>
+                                                        {test.nombreTest}
+                                                    </span>
+                                                </div>
                                                 {test.doctor && (
                                                     <div className="text-[10px] text-gray-400 font-normal mt-0.5">
                                                         Solicitado por: Dr. {test.doctor.nombre} {test.doctor.paterno}
@@ -386,10 +434,16 @@ const PacienteTabTest: React.FC = () => {
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 {isCompletado ? (
-                                                    <div className="flex items-center gap-1.5">
-                                                        <span className="font-black text-gray-900 dark:text-white">{test.puntaje}</span>
-                                                        <span className="text-gray-400 text-xs">/ 30 pts</span>
-                                                    </div>
+                                                    isValores ? (
+                                                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                                            <Sparkles size={12} /> Top 3 Definido
+                                                        </span>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="font-black text-gray-900 dark:text-white">{test.puntaje}</span>
+                                                            <span className="text-gray-400 text-xs">/ 30 pts</span>
+                                                        </div>
+                                                    )
                                                 ) : (
                                                     <span className="text-gray-400 dark:text-gray-500">—</span>
                                                 )}
@@ -399,15 +453,19 @@ const PacienteTabTest: React.FC = () => {
                                                     {isCompletado ? (
                                                         <button
                                                             onClick={() => handleViewDetails(test)}
-                                                            className="bg-blue-500 hover:bg-blue-600 text-white hover:text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 text-xs active:scale-95 border border-transparent"
-                                                            title="Ver Respuestas Detalladas"
+                                                            className={`${
+                                                                isValores 
+                                                                    ? 'bg-purple-600 hover:bg-purple-700' 
+                                                                    : 'bg-blue-500 hover:bg-blue-600'
+                                                            } text-white hover:text-white font-bold py-1.5 px-3 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center gap-1.5 text-xs active:scale-95 border border-transparent`}
+                                                            title="Ver Resultados"
                                                         >
                                                             <Eye size={14} /> Ver Resultados
                                                         </button>
                                                     ) : (
                                                         <>
                                                             <button
-                                                                onClick={() => handleCopyLink(test.token)}
+                                                                onClick={() => handleCopyLink(test.token, test.nombreTest)}
                                                                 className="bg-gray-500 hover:bg-gray-600 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 border border-transparent"
                                                                 title="Copiar Enlace"
                                                             >
@@ -421,7 +479,7 @@ const PacienteTabTest: React.FC = () => {
                                                                 <MessageCircle size={14} />
                                                             </button>
                                                              <a
-                                                                href={getTestLink(test.token)}
+                                                                href={getTestLink(test.token, test.nombreTest)}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="bg-blue-600 hover:bg-blue-700 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 hover:no-underline border border-transparent"
@@ -432,7 +490,7 @@ const PacienteTabTest: React.FC = () => {
                                                             <button
                                                                 onClick={() => handleDeleteTest(test.id)}
                                                                 className="bg-red-500 hover:bg-red-600 text-white hover:text-white font-bold py-1.5 px-2 rounded-lg shadow-sm transition-all transform hover:-translate-y-0.5 flex items-center justify-center text-xs active:scale-95 border border-transparent"
-                                                                title="Eliminar Test"
+                                                                title="Eliminar"
                                                             >
                                                                 <Trash2 size={14} />
                                                             </button>
@@ -456,23 +514,23 @@ const PacienteTabTest: React.FC = () => {
                         <div className="flex justify-between items-start mb-4">
                             <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                 <Send size={20} className="text-blue-500" />
-                                Enlace de Test Generado
+                                Enlace Generado: {generatedTestName}
                             </h3>
                         </div>
                         
                         <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
-                            Copia el siguiente enlace y envíalo al paciente (por WhatsApp, correo, etc.) para que pueda realizar el test de forma remota sin necesidad de iniciar sesión:
+                            Copia el siguiente enlace y envíalo al paciente (por WhatsApp, correo, etc.) para que pueda realizar la actividad de forma remota sin necesidad de iniciar sesión:
                         </p>
 
                         <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-900 p-3 rounded-2xl border border-gray-200 dark:border-gray-700 mb-6">
                             <input 
                                 type="text" 
                                 readOnly 
-                                value={getTestLink(generatedToken)}
+                                value={getTestLink(generatedToken, generatedTestName)}
                                 className="bg-transparent border-none outline-none flex-1 text-xs font-mono text-gray-600 dark:text-gray-300"
                             />
                             <button
-                                onClick={() => handleCopyLink(generatedToken)}
+                                onClick={() => handleCopyLink(generatedToken, generatedTestName)}
                                 className="bg-blue-600 hover:bg-blue-700 text-white font-bold p-2.5 rounded-xl transition-all shadow-md shadow-blue-500/10 active:scale-95 flex items-center justify-center"
                                 title="Copiar enlace"
                             >
@@ -489,12 +547,12 @@ const PacienteTabTest: React.FC = () => {
                                 Cerrar
                             </button>
                             <a
-                                href={getTestLink(generatedToken)}
+                                href={getTestLink(generatedToken, generatedTestName)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white hover:text-white font-bold px-4 py-2 text-xs rounded-xl shadow-md flex items-center gap-1.5 transform hover:-translate-y-0.5 transition-all active:scale-95 hover:no-underline border border-transparent"
                             >
-                                <ExternalLink size={14} /> Probar Test
+                                <ExternalLink size={14} /> Abrir Actividad
                             </a>
                         </div>
                     </div>
@@ -577,6 +635,14 @@ const PacienteTabTest: React.FC = () => {
                                     {selectedTest.nombreTest}
                                 </p>
                             </div>
+                            <button
+                                type="button"
+                                onClick={() => setShowDetailModal(false)}
+                                className="bg-gray-100 hover:bg-red-500 text-gray-500 hover:text-white dark:bg-gray-700 dark:hover:bg-red-600 dark:text-gray-300 p-2 rounded-xl transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm flex items-center justify-center cursor-pointer border border-gray-200 dark:border-gray-600"
+                                title="Cerrar modal"
+                            >
+                                <X size={18} />
+                            </button>
                         </div>
 
                         {/* Summary Score Card */}
@@ -676,6 +742,14 @@ const PacienteTabTest: React.FC = () => {
                     />
                 </div>
             )}
+
+            {/* Modal de Resultados para Dinámica Explorando Valores */}
+            <ValoresResultadosModal
+                isOpen={showValoresModal}
+                onClose={() => setShowValoresModal(false)}
+                test={selectedTest}
+                pacienteName={paciente ? `${paciente.nombre || ''} ${paciente.paterno || ''} ${paciente.materno || ''}`.trim() : undefined}
+            />
 
             <ManualModal 
                 isOpen={showManual}

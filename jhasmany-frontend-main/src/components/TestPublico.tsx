@@ -45,6 +45,10 @@ const TestPublico: React.FC = () => {
 
         axios.get<TestDetails>(`${API_URL}/paciente-test/public/${token}`)
             .then(res => {
+                if (res.data.nombreTest?.toLowerCase().includes('valores')) {
+                    window.location.replace(`/juego-valores/${token}`);
+                    return;
+                }
                 setTestDetails(res.data);
                 if (res.data.estado === 'completado') {
                     setCompleted(true);

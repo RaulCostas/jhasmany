@@ -33,6 +33,7 @@ import PacienteTabPagos from './components/PacienteTabPagos';
 import PacienteTabTest from './components/PacienteTabTest';
 import PacienteTabImagenes from './components/PacienteTabImagenes';
 import TestPublico from './components/TestPublico';
+import JuegoValoresPublico from './components/JuegoValoresPublico';
 
 
 import EstadisticasUtilidades from './components/EstadisticasUtilidades';
@@ -59,6 +60,7 @@ function App() {
                         <Routes>
                             <Route path="/login" element={<Login />} />
                             <Route path="/test-publico/:token" element={<TestPublico />} />
+                            <Route path="/juego-valores/:token" element={<JuegoValoresPublico />} />
                             <Route path="/" element={<Layout />}>
                                 <Route index element={<RootRedirect />} />
 

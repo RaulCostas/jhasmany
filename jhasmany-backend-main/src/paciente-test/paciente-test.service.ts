@@ -79,14 +79,20 @@ export class PacienteTestService {
         }
         const jid = phone + '@s.whatsapp.net';
 
-        const link = `${frontendUrl}/test-publico/${test.token}`;
-        const message = `Estimado(a) *${test.paciente.nombre} ${test.paciente.paterno}*, el Dr. *${doctor.nombre} ${doctor.paterno}* le ha enviado la *Escala de Autoestima de Rosenberg* para que la complete de forma remota.\n\nPor favor, haga clic en el siguiente enlace para realizar el test:\n🔗 ${link}\n\nGracias por su colaboración.`;
+        const isValores = test.nombreTest?.toLowerCase().includes('valores');
+        const link = isValores
+            ? `${frontendUrl}/juego-valores/${test.token}`
+            : `${frontendUrl}/test-publico/${test.token}`;
+
+        const message = isValores
+            ? `Estimado(a) *${test.paciente.nombre} ${test.paciente.paterno}*, el Dr. *${doctor.nombre} ${doctor.paterno}* le ha enviado la dinámica interactiva *Explorando Valores* para que la realice desde su celular o computadora.\n\nPor favor, haga clic en el siguiente enlace para comenzar la actividad:\n🔗 ${link}\n\n¡Esperamos que disfrute la experiencia!`
+            : `Estimado(a) *${test.paciente.nombre} ${test.paciente.paterno}*, el Dr. *${doctor.nombre} ${doctor.paterno}* le ha enviado la *${test.nombreTest || 'Escala de Autoestima de Rosenberg'}* para que la complete de forma remota.\n\nPor favor, haga clic en el siguiente enlace para realizar el test:\n🔗 ${link}\n\nGracias por su colaboración.`;
 
         await this.chatbotService.sendMessage(jid, message);
 
         return {
             success: true,
-            message: 'Enlace de test enviado por WhatsApp exitosamente'
+            message: 'Enlace enviado por WhatsApp exitosamente'
         };
     }
 
@@ -124,7 +130,7 @@ export class PacienteTestService {
     }
 
     // 4. Submit answers, calculate score and update database record
-    async submitAnswers(token: string, respuestas: Record<number, number>) {
+    async submitAnswers(token: string, respuestas: any) {
         const test = await this.testRepository.findOne({
             where: { token },
             relations: ['paciente'],
@@ -136,6 +142,11 @@ export class PacienteTestService {
 
         if (test.estado === 'completado') {
             throw new BadRequestException('Este test ya ha sido completado y enviado anteriormente.');
+        }
+
+        // If it is Explorando Valores, handle via submitValores
+        if (test.nombreTest?.toLowerCase().includes('valores')) {
+            return this.submitValores(token, respuestas);
         }
 
         // Verify that all 10 questions are answered with valid options (1, 2, 3, or 4)
@@ -202,6 +213,78 @@ export class PacienteTestService {
 
                         await this.chatbotService.sendMessage(docJid, docMessage);
                         console.log(`[Chatbot] [PacienteTest] Notified Doctor ${doctor.id} about test completed by patient ${test.pacienteId}`);
+                    }
+                }
+            } catch (err) {
+                console.error('[PacienteTest] Error notifying doctor via WhatsApp:', err);
+            }
+        }
+
+        return {
+            success: true,
+            score: savedTest.puntaje,
+            result: savedTest.resultado,
+            fechaCompletado: savedTest.fechaCompletado,
+        };
+    }
+
+    // 4.1 Submit Explorando Valores game
+    async submitValores(
+        token: string,
+        data: {
+            ronda1?: { muyImportante: number[]; importante: number[]; menosImportante: number[] };
+            ronda2_top10?: number[];
+            ronda3_top3?: number[];
+            top3_nombres?: string[];
+            reflexiones?: Record<string, string>;
+        }
+    ) {
+        const test = await this.testRepository.findOne({
+            where: { token },
+            relations: ['paciente'],
+        });
+
+        if (!test) {
+            throw new NotFoundException('Dinámica no encontrada');
+        }
+
+        if (test.estado === 'completado') {
+            throw new BadRequestException('Esta dinámica ya ha sido completada y enviada anteriormente.');
+        }
+
+        if (!data.ronda3_top3 || data.ronda3_top3.length === 0) {
+            throw new BadRequestException('Debe seleccionar sus 3 valores principales.');
+        }
+
+        const top3Formatted = (data.top3_nombres && data.top3_nombres.length > 0)
+            ? data.top3_nombres.join(' • ')
+            : `Tarjetas: ${data.ronda3_top3.join(', ')}`;
+
+        test.estado = 'completado';
+        test.fechaCompletado = new Date();
+        test.respuestas = data;
+        test.puntaje = 3;
+        test.resultado = `Top 3 Valores: ${top3Formatted}`;
+
+        const savedTest = await this.testRepository.save(test);
+
+        // Notify Doctor via WhatsApp if associated
+        if (savedTest.doctorId) {
+            try {
+                const doctor = await this.doctorRepository.findOneBy({ id: savedTest.doctorId });
+                if (doctor && doctor.celular) {
+                    const chatbotStatus = this.chatbotService.getStatus();
+                    if (chatbotStatus.status === 'connected') {
+                        let docPhone = doctor.celular.replace(/\D/g, '');
+                        if (docPhone.length === 9) {
+                            docPhone = '51' + docPhone;
+                        }
+                        const docJid = docPhone + '@s.whatsapp.net';
+                        const patientName = `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim();
+                        const docMessage = `🔔 *Dinámica Completada: Explorando Valores*\n\nEl paciente *${patientName}* ha finalizado la dinámica *Explorando Valores*.\n\n*Sus 3 Valores Principales son:*\n⭐ ${top3Formatted}`;
+
+                        await this.chatbotService.sendMessage(docJid, docMessage);
+                        console.log(`[Chatbot] [PacienteTest] Notified Doctor ${doctor.id} about Explorando Valores completed by patient ${test.pacienteId}`);
                     }
                 }
             } catch (err) {
