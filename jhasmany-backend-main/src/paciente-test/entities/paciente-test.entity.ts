@@ -7,12 +7,27 @@ export class PacienteTest {
     @PrimaryGeneratedColumn()
     id: number;
 
-    @Column({ name: 'paciente_id' })
-    pacienteId: number;
+    @Column({ name: 'paciente_id', type: 'integer', nullable: true })
+    pacienteId: number | null;
 
-    @ManyToOne(() => Paciente, { onDelete: 'CASCADE' })
+    @ManyToOne(() => Paciente, { onDelete: 'CASCADE', nullable: true })
     @JoinColumn({ name: 'paciente_id' })
-    paciente: Paciente;
+    paciente: Paciente | null;
+
+    @Column({ name: 'es_invitado', type: 'boolean', default: false })
+    esInvitado: boolean;
+
+    @Column({ name: 'invitado_nombre', type: 'text', nullable: true })
+    invitadoNombre: string | null;
+
+    @Column({ name: 'invitado_paterno', type: 'text', nullable: true })
+    invitadoPaterno: string | null;
+
+    @Column({ name: 'invitado_materno', type: 'text', nullable: true })
+    invitadoMaterno: string | null;
+
+    @Column({ name: 'invitado_celular', type: 'text', nullable: true })
+    invitadoCelular: string | null;
 
     @Column({ name: 'doctor_id', type: 'integer', nullable: true })
     doctorId: number | null;

@@ -8,7 +8,7 @@ import ChatWidget from './Chat/ChatWidget';
 import { useChat } from '../context/ChatContext';
 import { useCorreos } from '../context/CorreosContext';
 import { ThemeToggle } from './ThemeToggle';
-import { Brain } from 'lucide-react';
+import { Brain, Sparkles } from 'lucide-react';
 
 
 const Layout: React.FC = () => {
@@ -181,6 +181,20 @@ const Layout: React.FC = () => {
                                         <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
                                     </svg>
                                     Pacientes
+                                </Link>
+                            </li>
+                        )}
+
+                        {/* DOCTORES */}
+                        {hasAccess('pacientes') && (
+                            <li className="nav-item">
+                                <Link
+                                    to="/tests-invitados"
+                                    className={`nav-link ${isActive('/tests-invitados')}`}
+                                    onClick={closeSidebar}
+                                >
+                                    <Sparkles size={20} className="mr-2.5 text-purple-400 shrink-0" />
+                                    Tests Invitados
                                 </Link>
                             </li>
                         )}

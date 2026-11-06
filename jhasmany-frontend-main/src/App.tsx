@@ -34,6 +34,7 @@ import PacienteTabTest from './components/PacienteTabTest';
 import PacienteTabImagenes from './components/PacienteTabImagenes';
 import TestPublico from './components/TestPublico';
 import JuegoValoresPublico from './components/JuegoValoresPublico';
+import TestsInvitadosList from './components/TestsInvitadosList';
 
 
 import EstadisticasUtilidades from './components/EstadisticasUtilidades';
@@ -60,6 +61,8 @@ function App() {
                         <Routes>
                             <Route path="/login" element={<Login />} />
                             <Route path="/test-publico/:token" element={<TestPublico />} />
+                            <Route path="/juego-valores/invitado" element={<JuegoValoresPublico />} />
+                            <Route path="/juego-valores" element={<Navigate to="/juego-valores/invitado" replace />} />
                             <Route path="/juego-valores/:token" element={<JuegoValoresPublico />} />
                             <Route path="/" element={<Layout />}>
                                 <Route index element={<RootRedirect />} />
@@ -122,6 +125,7 @@ function App() {
                                         </Route>
 
                                         <Route path="/pacientes/:id/historia-clinica" element={<HistoriaClinica />} />
+                                        <Route path="/tests-invitados" element={<TestsInvitadosList />} />
                                     </Route>
                                 </Route>
 

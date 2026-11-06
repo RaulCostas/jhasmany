@@ -30,6 +30,11 @@ const ValoresResultadosModal: React.FC<ValoresResultadosModalProps> = ({
     const importanteCards = VALORES_CARDS.filter(c => (ronda1.importante || []).includes(c.id));
     const menosImportanteCards = VALORES_CARDS.filter(c => (ronda1.menosImportante || []).includes(c.id));
 
+    const effectiveName = pacienteName 
+        || (test.paciente ? `${test.paciente.nombre || ''} ${test.paciente.paterno || ''}`.trim() : '')
+        || `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''}`.trim()
+        || 'Participante Invitado';
+
     const handlePrint = () => {
         const printWindow = window.open('', '_blank');
         if (!printWindow) return;
@@ -67,7 +72,7 @@ const ValoresResultadosModal: React.FC<ValoresResultadosModalProps> = ({
                 </div>
                 
                 <div class="meta-grid">
-                    <div><strong>Paciente:</strong> ${pacienteName || 'Paciente'}</div>
+                    <div><strong>Paciente:</strong> ${effectiveName}</div>
                     <div><strong>Fecha Completado:</strong> ${test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}</div>
                     <div><strong>Profesional Solicitante:</strong> Dr. ${test.doctor ? `${test.doctor.nombre} ${test.doctor.paterno}` : 'Tratante'}</div>
                     <div><strong>Resultado Principal:</strong> ${test.resultado || '-'}</div>
@@ -148,7 +153,7 @@ const ValoresResultadosModal: React.FC<ValoresResultadosModalProps> = ({
                             </h3>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Paciente: <strong className="text-purple-600 dark:text-purple-400">{pacienteName}</strong> • Completado el {test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}
+                            Paciente: <strong className="text-purple-600 dark:text-purple-400">{effectiveName}</strong> • Completado el {test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}
                         </p>
                     </div>
 

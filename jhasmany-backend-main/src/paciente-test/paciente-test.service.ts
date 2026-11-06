@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, IsNull } from 'typeorm';
 import * as crypto from 'crypto';
 import { PacienteTest } from './entities/paciente-test.entity';
 import { Paciente } from '../pacientes/entities/paciente.entity';
 import { Doctor } from '../doctors/entities/doctor.entity';
 import { ChatbotService } from '../chatbot/chatbot.service';
+import { PacientesService } from '../pacientes/pacientes.service';
 
 @Injectable()
 export class PacienteTestService {
@@ -18,6 +19,8 @@ export class PacienteTestService {
         private readonly doctorRepository: Repository<Doctor>,
         @Inject(forwardRef(() => ChatbotService))
         private readonly chatbotService: ChatbotService,
+        @Inject(forwardRef(() => PacientesService))
+        private readonly pacientesService: PacientesService,
     ) {}
 
     // 1. Create and send a new test (generates a secure token)
@@ -36,6 +39,38 @@ export class PacienteTestService {
             token,
             estado: 'enviado',
             fechaEnvio: new Date(),
+        });
+
+        return this.testRepository.save(test);
+    }
+
+    // 1.1 Create test for an unregistered / guest participant
+    async createInvitadoPublic(dto: {
+        nombre: string;
+        paterno: string;
+        materno?: string;
+        celular?: string;
+        doctorId?: number;
+        nombreTest?: string;
+    }): Promise<PacienteTest> {
+        if (!dto.nombre || !dto.paterno) {
+            throw new BadRequestException('El nombre y apellido paterno son requeridos.');
+        }
+
+        const token = crypto.randomBytes(16).toString('hex');
+
+        const test = this.testRepository.create({
+            pacienteId: null,
+            doctorId: dto.doctorId || null,
+            nombreTest: dto.nombreTest || 'Explorando Valores',
+            token,
+            estado: 'enviado',
+            fechaEnvio: new Date(),
+            esInvitado: true,
+            invitadoNombre: dto.nombre.trim(),
+            invitadoPaterno: dto.paterno.trim(),
+            invitadoMaterno: (dto.materno || '').trim() || null,
+            invitadoCelular: (dto.celular || '').trim() || null,
         });
 
         return this.testRepository.save(test);
@@ -117,6 +152,10 @@ export class PacienteTestService {
             throw new NotFoundException('Test no encontrado');
         }
 
+        const pacienteName = test.paciente
+            ? `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim()
+            : `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''} ${test.invitadoMaterno || ''}`.trim() || 'Participante Invitado';
+
         // Return only non-sensitive data
         return {
             id: test.id,
@@ -126,7 +165,8 @@ export class PacienteTestService {
             fechaCompletado: test.fechaCompletado,
             puntaje: test.puntaje,
             resultado: test.resultado,
-            pacienteName: `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim(),
+            pacienteName,
+            esInvitado: test.esInvitado,
         };
     }
 
@@ -209,7 +249,9 @@ export class PacienteTestService {
                         }
                         const docJid = docPhone + '@s.whatsapp.net';
 
-                        const patientName = `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim();
+                        const patientName = test.paciente
+                            ? `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim()
+                            : `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''} ${test.invitadoMaterno || ''}`.trim() || 'Invitado(a)';
                         const docMessage = `🔔 *Notificación de Test Completado*\n\nEl paciente *${patientName}* ha completado el test *${savedTest.nombreTest}*.\n\n*Resultado:* ${savedTest.resultado}\n*Puntaje:* ${savedTest.puntaje} / 30 pts.`;
 
                         await this.chatbotService.sendMessage(docJid, docMessage);
@@ -281,7 +323,9 @@ export class PacienteTestService {
                             docPhone = '51' + docPhone;
                         }
                         const docJid = docPhone + '@s.whatsapp.net';
-                        const patientName = `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim();
+                        const patientName = test.paciente
+                            ? `${test.paciente.nombre || ''} ${test.paciente.paterno || ''} ${test.paciente.materno || ''}`.trim()
+                            : `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''} ${test.invitadoMaterno || ''}`.trim() || 'Invitado(a)';
                         const docMessage = `🔔 *Dinámica Completada: Explorando Valores*\n\nEl paciente *${patientName}* ha finalizado la dinámica *Explorando Valores*.\n\n*Sus 3 Valores Principales son:*\n⭐ ${top3Formatted}`;
 
                         await this.chatbotService.sendMessage(docJid, docMessage);
@@ -301,7 +345,92 @@ export class PacienteTestService {
         };
     }
 
-    // 5. Delete a test (only if not completed)
+    // 5. Find all tests for guests / unregistered participants
+    async findAllInvitados(): Promise<PacienteTest[]> {
+        return this.testRepository.find({
+            where: [
+                { esInvitado: true },
+                { pacienteId: IsNull() },
+            ],
+            relations: ['doctor', 'paciente'],
+            order: { fechaEnvio: 'DESC' },
+        });
+    }
+
+    // 6. Link / convert guest test to a registered patient (either create new patient or link to existing)
+    async vincularPaciente(
+        testId: number,
+        data: {
+            pacienteId?: number;
+            crearNuevo?: boolean;
+            nombre?: string;
+            paterno?: string;
+            materno?: string;
+            telefono_celular?: string;
+            dni?: string;
+            usuarioId?: number;
+        }
+    ) {
+        const test = await this.testRepository.findOne({
+            where: { id: testId },
+            relations: ['paciente', 'doctor'],
+        });
+
+        if (!test) {
+            throw new NotFoundException('Test no encontrado');
+        }
+
+        let pacienteDestino: Paciente;
+
+        if (data.crearNuevo) {
+            const nombre = (data.nombre || test.invitadoNombre || '').trim();
+            const paterno = (data.paterno || test.invitadoPaterno || '').trim();
+            const materno = (data.materno || test.invitadoMaterno || '').trim();
+            const celular = (data.telefono_celular || test.invitadoCelular || '').trim();
+
+            if (!nombre || !paterno) {
+                throw new BadRequestException('El nombre y apellido paterno son obligatorios para registrar al paciente.');
+            }
+
+            const now = new Date();
+            const fechaIngreso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const horaIngreso = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            pacienteDestino = await this.pacientesService.create({
+                nombre,
+                paterno,
+                materno: materno || '',
+                telefono_celular: celular || '',
+                dni: data.dni ? data.dni.trim() : '',
+                fecha_ingreso: fechaIngreso,
+                hora_ingreso: horaIngreso,
+                estado: 'Activo',
+                usuarioId: data.usuarioId ? Number(data.usuarioId) : undefined,
+            } as any);
+        } else if (data.pacienteId) {
+            const pac = await this.pacienteRepository.findOneBy({ id: Number(data.pacienteId) });
+            if (!pac) {
+                throw new NotFoundException('Paciente a vincular no encontrado.');
+            }
+            pacienteDestino = pac;
+        } else {
+            throw new BadRequestException('Debe seleccionar un paciente existente o indicar crear uno nuevo.');
+        }
+
+        test.pacienteId = pacienteDestino.id;
+        test.paciente = pacienteDestino;
+        test.esInvitado = false;
+        const updatedTest = await this.testRepository.save(test);
+
+        return {
+            success: true,
+            message: 'Dinámica vinculada exitosamente al historial del paciente',
+            paciente: pacienteDestino,
+            test: updatedTest,
+        };
+    }
+
+    // 7. Delete a test (only if not completed)
     async remove(id: number): Promise<{ success: boolean; message: string }> {
         const test = await this.testRepository.findOneBy({ id });
         if (!test) {

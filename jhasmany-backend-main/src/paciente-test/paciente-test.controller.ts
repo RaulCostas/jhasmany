@@ -15,6 +15,45 @@ export class PacienteTestController {
         return this.testService.create(Number(pacienteId), doctorId ? Number(doctorId) : undefined, nombreTest);
     }
 
+    // 1.1 Public start for an unregistered / guest participant
+    @Post('public/iniciar-invitado')
+    createInvitadoPublic(
+        @Body() body: {
+            nombre: string;
+            paterno: string;
+            materno?: string;
+            celular?: string;
+            doctorId?: number;
+            nombreTest?: string;
+        }
+    ) {
+        return this.testService.createInvitadoPublic(body);
+    }
+
+    // 1.2 Get all tests for guests / unregistered participants
+    @Get('invitados')
+    findAllInvitados() {
+        return this.testService.findAllInvitados();
+    }
+
+    // 1.3 Link / convert guest test to a registered patient
+    @Post(':id/vincular')
+    vincularPaciente(
+        @Param('id') id: string,
+        @Body() body: {
+            pacienteId?: number;
+            crearNuevo?: boolean;
+            nombre?: string;
+            paterno?: string;
+            materno?: string;
+            telefono_celular?: string;
+            dni?: string;
+            usuarioId?: number;
+        }
+    ) {
+        return this.testService.vincularPaciente(Number(id), body);
+    }
+
     // Send test link via WhatsApp to the patient and associate doctor
     @Post(':id/send-whatsapp')
     sendWhatsApp(

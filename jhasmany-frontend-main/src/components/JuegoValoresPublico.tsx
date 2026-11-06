@@ -6,7 +6,7 @@ import { VALORES_CARDS, type ValorCard } from '../data/valoresCards';
 import { 
     Check, Sparkles, ChevronRight, ChevronLeft, RotateCcw, 
     Send, Award, HelpCircle, Layers, Heart, CheckCircle2,
-    Eye, Flame, Shield, ArrowRight, BookOpen
+    Eye, Flame, Shield, ArrowRight, BookOpen, User, Phone
 } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
@@ -24,8 +24,21 @@ type CategoriaRonda1 = 'muyImportante' | 'importante' | 'menosImportante';
 
 const JuegoValoresPublico: React.FC = () => {
     const { token } = useParams<{ token: string }>();
+    const isGuestInitial = token === 'invitado' || !token;
+
+    const [activeToken, setActiveToken] = useState<string | null>(isGuestInitial ? null : (token || null));
+    const [isGuestMode, setIsGuestMode] = useState<boolean>(isGuestInitial);
     const [testDetails, setTestDetails] = useState<TestDetails | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(!isGuestInitial);
+
+    // Guest registration form state
+    const [guestForm, setGuestForm] = useState({
+        nombre: '',
+        paterno: '',
+        materno: '',
+        celular: ''
+    });
+    const [registeringGuest, setRegisteringGuest] = useState(false);
 
     // Game state:
     // 0 = Introducción / Instrucciones
@@ -60,9 +73,13 @@ const JuegoValoresPublico: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
 
     useEffect(() => {
-        if (!token) return;
+        if (!activeToken || activeToken === 'invitado') {
+            setLoading(false);
+            return;
+        }
 
-        axios.get<TestDetails>(`${API_URL}/paciente-test/public/${token}`)
+        setLoading(true);
+        axios.get<TestDetails>(`${API_URL}/paciente-test/public/${activeToken}`)
             .then(res => {
                 setTestDetails(res.data);
                 if (res.data.estado === 'completado') {
@@ -81,7 +98,70 @@ const JuegoValoresPublico: React.FC = () => {
             .finally(() => {
                 setLoading(false);
             });
-    }, [token]);
+    }, [activeToken]);
+
+    const handleStartGuest = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!guestForm.nombre.trim() || !guestForm.paterno.trim()) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Campos Requeridos',
+                text: 'Por favor ingresa tu nombre y apellido paterno.',
+                confirmButtonColor: '#7c3aed'
+            });
+            return;
+        }
+
+        if (!guestForm.celular.trim() || guestForm.celular.trim().length < 7) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Celular Requerido',
+                text: 'Por favor ingresa un número de celular válido para contacto.',
+                confirmButtonColor: '#7c3aed'
+            });
+            return;
+        }
+
+        try {
+            setRegisteringGuest(true);
+            const queryParams = new URLSearchParams(window.location.search);
+            const doctorIdParam = queryParams.get('doctorId') || queryParams.get('doctor');
+            const doctorId = doctorIdParam ? Number(doctorIdParam) : undefined;
+
+            const res = await axios.post(`${API_URL}/paciente-test/public/iniciar-invitado`, {
+                nombre: guestForm.nombre.trim(),
+                paterno: guestForm.paterno.trim(),
+                materno: guestForm.materno.trim(),
+                celular: guestForm.celular.trim(),
+                doctorId: doctorId || undefined,
+                nombreTest: 'Explorando Valores'
+            });
+
+            const newToken = res.data.token;
+            setActiveToken(newToken);
+            setTestDetails({
+                id: res.data.id,
+                nombreTest: res.data.nombreTest,
+                estado: 'enviado',
+                pacienteName: `${guestForm.nombre} ${guestForm.paterno} ${guestForm.materno}`.trim()
+            });
+            setIsGuestMode(false);
+            setStep(0); // Go to introduction instructions
+
+            // Update URL without page reload
+            window.history.replaceState(null, '', `/juego-valores/${newToken}`);
+        } catch (error: any) {
+            console.error('Error registrando invitado:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: error.response?.data?.message || 'No se pudo iniciar la dinámica. Intente nuevamente.',
+                confirmButtonColor: '#7c3aed'
+            });
+        } finally {
+            setRegisteringGuest(false);
+        }
+    };
 
     // Helpers
     const currentCard: ValorCard | undefined = VALORES_CARDS[currentIndex];
@@ -176,7 +256,8 @@ const JuegoValoresPublico: React.FC = () => {
 
         try {
             setSubmitting(true);
-            await axios.post(`${API_URL}/paciente-test/public/${token}/responder-valores`, payload);
+            const tokenToUse = activeToken || token;
+            await axios.post(`${API_URL}/paciente-test/public/${tokenToUse}/responder-valores`, payload);
             setStep(5);
             Swal.fire({
                 icon: 'success',
@@ -203,6 +284,130 @@ const JuegoValoresPublico: React.FC = () => {
                 <div className="text-center text-white space-y-4">
                     <div className="animate-spin rounded-full h-14 w-14 border-t-4 border-b-4 border-purple-500 mx-auto"></div>
                     <p className="text-lg font-medium text-slate-300">Cargando la dinámica...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (isGuestMode && !activeToken) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 font-sans relative overflow-hidden">
+                {/* Background glow effects */}
+                <div className="fixed inset-0 pointer-events-none overflow-hidden">
+                    <div className="absolute -top-40 -left-40 w-96 h-96 bg-purple-600/20 rounded-full blur-3xl"></div>
+                    <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl"></div>
+                </div>
+
+                <div className="max-w-md w-full relative z-10 bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-purple-950/40">
+                    <div className="text-center mb-6">
+                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-purple-500/30">
+                            <Sparkles size={28} className="text-white animate-pulse" />
+                        </div>
+                        <span className="text-[11px] font-bold tracking-widest uppercase text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full border border-purple-500/20 inline-block mb-2">
+                            Dinámica Terapéutica
+                        </span>
+                        <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+                            Explorando Valores
+                        </h1>
+                        <p className="text-xs sm:text-sm text-slate-400 mt-2 leading-relaxed">
+                            Una experiencia interactiva y reflexiva para ayudarte a descubrir y jerarquizar lo que verdaderamente es valioso para ti.
+                        </p>
+                    </div>
+
+                    <form onSubmit={handleStartGuest} className="space-y-4">
+                        <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/60 mb-2">
+                            <p className="text-xs text-slate-300 font-medium flex items-center gap-1.5">
+                                <User size={14} className="text-purple-400 shrink-0" />
+                                Por favor ingresa tus datos para comenzar:
+                            </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                Nombres <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={guestForm.nombre}
+                                onChange={(e) => setGuestForm({ ...guestForm, nombre: e.target.value })}
+                                placeholder="Ej. Ana María"
+                                className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    Apellido Paterno <span className="text-red-400">*</span>
+                                </label>
+                                <input
+                                    type="text"
+                                    required
+                                    value={guestForm.paterno}
+                                    onChange={(e) => setGuestForm({ ...guestForm, paterno: e.target.value })}
+                                    placeholder="Ej. Rodríguez"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                    Apellido Materno
+                                </label>
+                                <input
+                                    type="text"
+                                    value={guestForm.materno}
+                                    onChange={(e) => setGuestForm({ ...guestForm, materno: e.target.value })}
+                                    placeholder="Ej. Gómez"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                                />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-semibold text-slate-300 mb-1">
+                                Teléfono Celular (WhatsApp) <span className="text-red-400">*</span>
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type="tel"
+                                    required
+                                    value={guestForm.celular}
+                                    onChange={(e) => setGuestForm({ ...guestForm, celular: e.target.value })}
+                                    placeholder="Ej. 912345678"
+                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                                />
+                                <Phone size={15} className="absolute left-3 top-3 text-slate-500" />
+                            </div>
+                        </div>
+
+                        <div className="pt-2">
+                            <button
+                                type="submit"
+                                disabled={registeringGuest}
+                                className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-purple-600/30 flex items-center justify-center gap-2 text-sm transition-all transform hover:-translate-y-0.5 active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                                {registeringGuest ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                                        <span>Preparando tu dinámica...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Comenzar Dinámica</span>
+                                        <ArrowRight size={16} />
+                                    </>
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="text-center pt-2">
+                            <p className="text-[11px] text-slate-500 flex items-center justify-center gap-1">
+                                <Shield size={12} className="text-emerald-500" />
+                                Tus respuestas son confidenciales y terapéuticas.
+                            </p>
+                        </div>
+                    </form>
                 </div>
             </div>
         );

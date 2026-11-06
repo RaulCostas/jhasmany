@@ -4,6 +4,7 @@ import { PacienteTest } from './entities/paciente-test.entity';
 import { Paciente } from '../pacientes/entities/paciente.entity';
 import { Doctor } from '../doctors/entities/doctor.entity';
 import { ChatbotModule } from '../chatbot/chatbot.module';
+import { PacientesModule } from '../pacientes/pacientes.module';
 import { PacienteTestService } from './paciente-test.service';
 import { PacienteTestController } from './paciente-test.controller';
 
@@ -11,6 +12,7 @@ import { PacienteTestController } from './paciente-test.controller';
   imports: [
     TypeOrmModule.forFeature([PacienteTest, Paciente, Doctor]),
     forwardRef(() => ChatbotModule),
+    forwardRef(() => PacientesModule),
   ],
   controllers: [PacienteTestController],
   providers: [PacienteTestService],
