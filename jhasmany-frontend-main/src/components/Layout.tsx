@@ -185,7 +185,7 @@ const Layout: React.FC = () => {
                             </li>
                         )}
 
-                        {/* DOCTORES */}
+                        {/* TESTS / DINÁMICAS INVITADOS */}
                         {hasAccess('pacientes') && (
                             <li className="nav-item">
                                 <Link
@@ -193,7 +193,7 @@ const Layout: React.FC = () => {
                                     className={`nav-link ${isActive('/tests-invitados')}`}
                                     onClick={closeSidebar}
                                 >
-                                    <Sparkles size={20} className="mr-2.5 text-purple-400 shrink-0" />
+                                    <Sparkles size={20} style={{ marginRight: '10px' }} />
                                     Tests Invitados
                                 </Link>
                             </li>

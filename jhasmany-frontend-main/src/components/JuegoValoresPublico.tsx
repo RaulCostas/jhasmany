@@ -11,6 +11,20 @@ import {
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
+const COUNTRY_CODES = [
+    { code: '+51', label: '🇵🇪 +51' },
+    { code: '+591', label: '🇧🇴 +591' },
+    { code: '+54', label: '🇦🇷 +54' },
+    { code: '+55', label: '🇧🇷 +55' },
+    { code: '+56', label: '🇨🇱 +56' },
+    { code: '+595', label: '🇵🇾 +595' },
+    { code: '+598', label: '🇺🇾 +598' },
+    { code: '+57', label: '🇨🇴 +57' },
+    { code: '+52', label: '🇲🇽 +52' },
+    { code: '+34', label: '🇪🇸 +34' },
+    { code: '+1', label: '🇺🇸 +1' },
+];
+
 interface TestDetails {
     id: number;
     nombreTest: string;
@@ -32,6 +46,7 @@ const JuegoValoresPublico: React.FC = () => {
     const [loading, setLoading] = useState(!isGuestInitial);
 
     // Guest registration form state
+    const [countryCode, setCountryCode] = useState('+51');
     const [guestForm, setGuestForm] = useState({
         nombre: '',
         paterno: '',
@@ -128,11 +143,14 @@ const JuegoValoresPublico: React.FC = () => {
             const doctorIdParam = queryParams.get('doctorId') || queryParams.get('doctor');
             const doctorId = doctorIdParam ? Number(doctorIdParam) : undefined;
 
+            const cleanNumber = guestForm.celular.trim();
+            const fullCelular = `${countryCode} ${cleanNumber}`;
+
             const res = await axios.post(`${API_URL}/paciente-test/public/iniciar-invitado`, {
                 nombre: guestForm.nombre.trim(),
                 paterno: guestForm.paterno.trim(),
                 materno: guestForm.materno.trim(),
-                celular: guestForm.celular.trim(),
+                celular: fullCelular,
                 doctorId: doctorId || undefined,
                 nombreTest: 'Explorando Valores'
             });
@@ -368,16 +386,29 @@ const JuegoValoresPublico: React.FC = () => {
                             <label className="block text-xs font-semibold text-slate-300 mb-1">
                                 Teléfono Celular (WhatsApp) <span className="text-red-400">*</span>
                             </label>
-                            <div className="relative">
-                                <input
-                                    type="tel"
-                                    required
-                                    value={guestForm.celular}
-                                    onChange={(e) => setGuestForm({ ...guestForm, celular: e.target.value })}
-                                    placeholder="Ej. 912345678"
-                                    className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
-                                />
-                                <Phone size={15} className="absolute left-3 top-3 text-slate-500" />
+                            <div className="flex gap-2">
+                                <select
+                                    value={countryCode}
+                                    onChange={(e) => setCountryCode(e.target.value)}
+                                    className="bg-slate-950 border border-slate-700 rounded-xl px-2.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500 font-sans cursor-pointer shrink-0"
+                                >
+                                    {COUNTRY_CODES.map(c => (
+                                        <option key={c.code} value={c.code} className="bg-slate-900 text-white">
+                                            {c.label}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="relative flex-1">
+                                    <input
+                                        type="tel"
+                                        required
+                                        value={guestForm.celular}
+                                        onChange={(e) => setGuestForm({ ...guestForm, celular: e.target.value })}
+                                        placeholder="Ej. 912345678"
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all"
+                                    />
+                                    <Phone size={15} className="absolute left-3 top-3 text-slate-500" />
+                                </div>
                             </div>
                         </div>
 

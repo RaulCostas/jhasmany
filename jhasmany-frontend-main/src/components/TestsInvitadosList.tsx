@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import { 
-    Sparkles, Copy, MessageCircle, Eye, UserPlus, Trash2, 
-    CheckCircle2, Clock, Search, ExternalLink, Link2, 
-    Share2, Filter, ShieldCheck, UserCheck, AlertCircle, 
-    ChevronRight, X
-} from 'lucide-react';
-import Swal from 'sweetalert2';
-import ValoresResultadosModal from './ValoresResultadosModal';
-import { formatDateTime } from '../utils/dateUtils';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import Pagination from './Pagination';
+import ManualModal, { type ManualSection } from './ManualModal';
+import { formatDateTime } from '../utils/dateUtils';
+import Swal from 'sweetalert2';
+import { 
+    FileText, Download, Printer, Users, CheckCircle, 
+    Sparkles, Copy, MessageCircle, Eye, UserPlus, 
+    Trash2, X, Phone, ExternalLink, Link2, Search
+} from 'lucide-react';
+import ValoresResultadosModal from './ValoresResultadosModal';
 
 interface PacienteTestInvitado {
     id: number;
@@ -51,35 +54,57 @@ interface PacienteSimple {
     telefono_celular?: string;
 }
 
+const countryCodes = [
+    { code: '+51', label: '🇵🇪 +51' },
+    { code: '+591', label: '🇧🇴 +591' },
+    { code: '+54', label: '🇦🇷 +54' },
+    { code: '+55', label: '🇧🇷 +55' },
+    { code: '+56', label: '🇨🇱 +56' },
+    { code: '+595', label: '🇵🇾 +595' },
+    { code: '+598', label: '🇺🇾 +598' },
+    { code: '+57', label: '🇨🇴 +57' },
+    { code: '+52', label: '🇲🇽 +52' },
+    { code: '+34', label: '🇪🇸 +34' },
+    { code: '+1', label: '🇺🇸 +1' },
+];
+
 const TestsInvitadosList: React.FC = () => {
     const navigate = useNavigate();
     const [tests, setTests] = useState<PacienteTestInvitado[]>([]);
     const [loading, setLoading] = useState(true);
-    const [searchTerm, setSearchTerm] = useState('');
+    const [searchInput, setSearchInput] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState<'all' | 'completado' | 'enviado'>('all');
 
     // Pagination
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 10;
+    const limit = 10;
 
     // Modals
+    const [showManual, setShowManual] = useState(false);
     const [selectedTest, setSelectedTest] = useState<PacienteTestInvitado | null>(null);
     const [isResultadosModalOpen, setIsResultadosModalOpen] = useState(false);
 
-    // Link modal
+    // WhatsApp Share Modal
+    const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
+    const [wsCountryCode, setWsCountryCode] = useState('+51');
+    const [wsLocalPhone, setWsLocalPhone] = useState('');
+
+    // Vincular Modal
     const [isVincularModalOpen, setIsVincularModalOpen] = useState(false);
     const [testToLink, setTestToLink] = useState<PacienteTestInvitado | null>(null);
     const [vincularMode, setVincularMode] = useState<'nuevo' | 'existente'>('nuevo');
     const [existingPacientes, setExistingPacientes] = useState<PacienteSimple[]>([]);
-    const [selectedPacienteId, setSelectedPacienteId] = useState<number | ''>('');
     const [patientSearchTerm, setPatientSearchTerm] = useState('');
+    const [selectedPacienteId, setSelectedPacienteId] = useState<number | ''>('');
 
-    // Form for new patient registration
+    // Form for new patient
     const [newPatientForm, setNewPatientForm] = useState({
         nombre: '',
         paterno: '',
         materno: '',
         telefono_celular: '',
+        countryCode: '+51',
         dni: '',
     });
     const [linking, setLinking] = useState(false);
@@ -88,19 +113,33 @@ const TestsInvitadosList: React.FC = () => {
     const publicUrl = `${window.location.origin}/juego-valores/invitado`;
     const [copied, setCopied] = useState(false);
 
+    const manualSections: ManualSection[] = [
+        {
+            title: 'Tests y Dinámicas de Invitados',
+            content: 'Este módulo permite gestionar los tests psicológicos e interactivas (como Explorando Valores) realizados por personas que aún no están formalmente registradas como pacientes.'
+        },
+        {
+            title: 'Enlace Público y WhatsApp',
+            content: 'Use el botón "Copiar Link" o "WhatsApp" en la barra superior para compartir el link con el código de país correcto. El invitado ingresará sus datos básicos antes de empezar.'
+        },
+        {
+            title: 'Resultados y Reportes',
+            content: 'Cuando el participante completa la dinámica, aparecerá con estado "Completado". Use el botón morado (ojo) para ver sus respuestas, reflexiones y generar el reporte clínico para impresión.'
+        },
+        {
+            title: 'Vincular a Paciente',
+            content: 'Use el botón azul (usuario+) para registrar a la persona formalmente como paciente en el sistema (con 1 solo clic y datos pre-llenados) o asociar el test a un paciente ya existente.'
+        }
+    ];
+
     const fetchTests = async () => {
         try {
             setLoading(true);
             const res = await api.get('/paciente-test/invitados');
-            setTests(res.data);
+            setTests(Array.isArray(res.data) ? res.data : []);
         } catch (error) {
             console.error('Error fetching guest tests:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'No se pudieron cargar los tests de participantes invitados.',
-                confirmButtonColor: '#7c3aed'
-            });
+            setTests([]);
         } finally {
             setLoading(false);
         }
@@ -110,7 +149,7 @@ const TestsInvitadosList: React.FC = () => {
         try {
             const res = await api.get('/pacientes?limit=1000');
             const data = res.data.data || res.data;
-            setExistingPacientes(data || []);
+            setExistingPacientes(Array.isArray(data) ? data : []);
         } catch (error) {
             console.error('Error fetching patients:', error);
         }
@@ -120,6 +159,21 @@ const TestsInvitadosList: React.FC = () => {
         fetchTests();
         fetchPacientesList();
     }, []);
+
+    // Debounce search input
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedSearch(searchInput);
+            setCurrentPage(1);
+        }, 300);
+        return () => clearTimeout(handler);
+    }, [searchInput]);
+
+    const handleClearSearch = () => {
+        setSearchInput('');
+        setDebouncedSearch('');
+        setCurrentPage(1);
+    };
 
     const handleCopyLink = () => {
         navigator.clipboard.writeText(publicUrl);
@@ -136,43 +190,55 @@ const TestsInvitadosList: React.FC = () => {
         });
     };
 
-    const handleShareWhatsApp = async () => {
-        const { value: phone } = await Swal.fire({
-            title: 'Compartir por WhatsApp',
-            input: 'text',
-            inputLabel: 'Número de WhatsApp del invitado',
-            inputPlaceholder: 'Ej. 912345678 o 51912345678',
-            showCancelButton: true,
-            confirmButtonText: 'Abrir WhatsApp',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#22c55e',
-            inputValidator: (value) => {
-                if (!value || value.trim().length < 8) {
-                    return 'Ingrese un número válido';
-                }
-            }
-        });
-
-        if (phone) {
-            let cleanPhone = phone.replace(/\D/g, '');
-            if (cleanPhone.length === 9) {
-                cleanPhone = '51' + cleanPhone;
-            }
-            const message = encodeURIComponent(
-                `Hola, te invito a realizar la dinámica terapéutica interactiva *Explorando Valores*.\n\nPuedes ingresar desde tu celular o computadora en este enlace:\n🔗 ${publicUrl}\n\n¡Esperamos que disfrutes la experiencia!`
-            );
-            window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    const handleSendWhatsApp = (e: React.FormEvent) => {
+        e.preventDefault();
+        const cleanNumber = wsLocalPhone.replace(/\D/g, '');
+        if (!cleanNumber || cleanNumber.length < 6) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Número Inválido',
+                text: 'Por favor ingrese un número de celular válido.',
+                confirmButtonColor: '#7c3aed'
+            });
+            return;
         }
+
+        const cleanCode = wsCountryCode.replace(/\D/g, '');
+        const fullPhone = `${cleanCode}${cleanNumber}`;
+        const message = encodeURIComponent(
+            `Hola, te invito a realizar la dinámica terapéutica interactiva *Explorando Valores*.\n\nPuedes ingresar desde tu celular o computadora en este enlace:\n🔗 ${publicUrl}\n\n¡Esperamos que disfrutes la experiencia!`
+        );
+
+        window.open(`https://wa.me/${fullPhone}?text=${message}`, '_blank');
+        setShowWhatsAppModal(false);
+        setWsLocalPhone('');
+    };
+
+    const formatCelular = (celular: string | null | undefined) => {
+        if (!celular) return '-';
+        return celular;
     };
 
     const handleOpenVincularModal = (test: PacienteTestInvitado) => {
         setTestToLink(test);
         setVincularMode('nuevo');
+
+        let rawPhone = test.invitadoCelular || '';
+        let detectedCode = '+51';
+        let localNum = rawPhone;
+
+        const found = countryCodes.find(c => rawPhone.startsWith(c.code));
+        if (found) {
+            detectedCode = found.code;
+            localNum = rawPhone.substring(found.code.length).trim();
+        }
+
         setNewPatientForm({
             nombre: test.invitadoNombre || '',
             paterno: test.invitadoPaterno || '',
             materno: test.invitadoMaterno || '',
-            telefono_celular: test.invitadoCelular || '',
+            telefono_celular: localNum,
+            countryCode: detectedCode,
             dni: '',
         });
         setSelectedPacienteId('');
@@ -210,13 +276,17 @@ const TestsInvitadosList: React.FC = () => {
             const userStr = localStorage.getItem('user');
             const currentUser = userStr ? JSON.parse(userStr) : null;
 
+            const fullCelular = newPatientForm.telefono_celular.trim()
+                ? `${newPatientForm.countryCode} ${newPatientForm.telefono_celular.trim()}`
+                : '';
+
             const payload = vincularMode === 'nuevo'
                 ? {
                     crearNuevo: true,
                     nombre: newPatientForm.nombre.trim(),
                     paterno: newPatientForm.paterno.trim(),
                     materno: newPatientForm.materno.trim(),
-                    telefono_celular: newPatientForm.telefono_celular.trim(),
+                    telefono_celular: fullCelular,
                     dni: newPatientForm.dni.trim(),
                     usuarioId: currentUser?.id,
                 }
@@ -257,22 +327,21 @@ const TestsInvitadosList: React.FC = () => {
         }
     };
 
-    const handleDeleteTest = async (test: PacienteTestInvitado) => {
-        const participantName = `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''}`.trim() || 'este participante';
+    const handleDelete = async (id: number) => {
         const result = await Swal.fire({
             title: '¿Eliminar registro?',
-            text: `¿Está seguro de eliminar el registro de dinámica de ${participantName}?`,
+            text: 'Esta acción no se puede deshacer.',
             icon: 'warning',
             showCancelButton: true,
-            confirmButtonColor: '#ef4444',
-            cancelButtonColor: '#6b7280',
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
             confirmButtonText: 'Sí, eliminar',
             cancelButtonText: 'Cancelar'
         });
 
         if (result.isConfirmed) {
             try {
-                await api.delete(`/paciente-test/${test.id}`);
+                await api.delete(`/paciente-test/${id}`);
                 Swal.fire({
                     icon: 'success',
                     title: 'Eliminado',
@@ -293,20 +362,126 @@ const TestsInvitadosList: React.FC = () => {
         }
     };
 
-    // Filtered tests
+    // Filtered data
     const filteredTests = tests.filter(t => {
         const fullName = `${t.invitadoNombre || ''} ${t.invitadoPaterno || ''} ${t.invitadoMaterno || ''} ${t.invitadoCelular || ''}`.toLowerCase();
-        const matchesSearch = fullName.includes(searchTerm.toLowerCase());
+        const matchesSearch = fullName.includes(debouncedSearch.toLowerCase());
         const matchesStatus = statusFilter === 'all' || t.estado === statusFilter;
         return matchesSearch && matchesStatus;
     });
 
-    const totalPages = Math.ceil(filteredTests.length / itemsPerPage);
-    const paginatedTests = filteredTests.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const totalRecords = filteredTests.length;
+    const totalPages = Math.ceil(totalRecords / limit);
+    const paginatedTests = filteredTests.slice((currentPage - 1) * limit, currentPage * limit);
 
-    const statsTotal = tests.length;
-    const statsCompletados = tests.filter(t => t.estado === 'completado').length;
-    const statsEnviados = tests.filter(t => t.estado === 'enviado').length;
+    // Export to Excel
+    const exportToExcel = () => {
+        const dataToExport = filteredTests.map((t, index) => ({
+            '#': index + 1,
+            'Participante': `${t.invitadoNombre || ''} ${t.invitadoPaterno || ''} ${t.invitadoMaterno || ''}`.trim(),
+            'Dinámica / Test': t.nombreTest,
+            'Celular': t.invitadoCelular || '-',
+            'Fecha Envío': formatDateTime(t.fechaEnvio),
+            'Fecha Completado': t.fechaCompletado ? formatDateTime(t.fechaCompletado) : '-',
+            'Estado': t.estado.toUpperCase(),
+            'Resultado': t.resultado || '-',
+            'Paciente Vinculado': t.paciente ? `${t.paciente.nombre} ${t.paciente.paterno}` : 'No vinculado'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Tests Invitados');
+        XLSX.writeFile(wb, `tests_invitados_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
+    // Export to PDF
+    const exportToPDF = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text('Lista de Tests y Dinámicas de Invitados', 14, 15);
+        doc.setFontSize(10);
+        doc.text(`Generado el: ${new Date().toLocaleDateString('es-ES')}`, 14, 22);
+
+        const tableData = filteredTests.map((t, index) => [
+            index + 1,
+            `${t.invitadoNombre || ''} ${t.invitadoPaterno || ''}`.trim(),
+            t.nombreTest,
+            t.invitadoCelular || '-',
+            formatDateTime(t.fechaEnvio),
+            t.estado.toUpperCase(),
+            t.paciente ? 'Vinculado' : 'No'
+        ]);
+
+        autoTable(doc, {
+            head: [['#', 'Participante', 'Dinámica', 'Celular', 'Fecha', 'Estado', 'Vinculado']],
+            body: tableData,
+            startY: 28,
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [124, 58, 237] }
+        });
+
+        doc.save(`tests_invitados_${new Date().toISOString().split('T')[0]}.pdf`);
+    };
+
+    // Print
+    const handlePrint = () => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Tests y Dinámicas de Invitados</title>
+                <style>
+                    body { font-family: Arial, sans-serif; padding: 20px; font-size: 12px; }
+                    h1 { color: #5b21b6; margin-bottom: 5px; }
+                    p { color: #666; margin-top: 0; }
+                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+                    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                    th { background-color: #7c3aed; color: white; }
+                    tr:nth-child(even) { background-color: #f9f9f9; }
+                </style>
+            </head>
+            <body>
+                <h1>Lista de Tests y Dinámicas de Invitados</h1>
+                <p>Generado el: ${new Date().toLocaleString('es-ES')}</p>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Participante</th>
+                            <th>Dinámica</th>
+                            <th>Celular</th>
+                            <th>Fecha Envío</th>
+                            <th>Fecha Completado</th>
+                            <th>Estado</th>
+                            <th>Vinculado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredTests.map((t, index) => `
+                            <tr>
+                                <td>${index + 1}</td>
+                                <td>${t.invitadoNombre || ''} ${t.invitadoPaterno || ''} ${t.invitadoMaterno || ''}</td>
+                                <td>${t.nombreTest}</td>
+                                <td>${t.invitadoCelular || '-'}</td>
+                                <td>${formatDateTime(t.fechaEnvio)}</td>
+                                <td>${t.fechaCompletado ? formatDateTime(t.fechaCompletado) : '-'}</td>
+                                <td>${t.estado.toUpperCase()}</td>
+                                <td>${t.paciente ? `${t.paciente.nombre} ${t.paciente.paterno}` : 'No'}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </body>
+            </html>
+        `;
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.print();
+    };
 
     // Filtered patient list for linking
     const filteredExistingPatients = existingPacientes.filter(p => {
@@ -318,99 +493,110 @@ const TestsInvitadosList: React.FC = () => {
     });
 
     return (
-        <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="content-card">
+            {/* Header - exactly styled like PacienteList */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                 <div>
-                    <h1 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2.5 tracking-tight">
-                        <span className="p-2 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
-                            <Sparkles size={24} />
-                        </span>
+                    <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white flex items-center gap-3">
+                        <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+                            <Sparkles className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                        </div>
                         Tests y Dinámicas de Invitados
-                    </h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                        Gestiona y comparte enlaces públicos para participantes que aún no están registrados en el sistema.
+                    </h2>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                        Administre los tests y dinámicas de participantes no registrados en el sistema.
                     </p>
                 </div>
-            </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                    <button
+                        onClick={() => setShowManual(true)}
+                        className="bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 p-1.5 rounded-full flex items-center justify-center w-[30px] h-[30px] text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                        title="Ayuda / Manual"
+                    >
+                        ?
+                    </button>
+                    <button
+                        onClick={exportToExcel}
+                        className="bg-[#28a745] hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Exportar a Excel"
+                    >
+                        <FileText size={18} />
+                        <span className="text-sm">Excel</span>
+                    </button>
+                    <button
+                        onClick={exportToPDF}
+                        className="bg-[#dc3545] hover:bg-red-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Exportar a PDF"
+                    >
+                        <Download size={18} />
+                        <span className="text-sm">PDF</span>
+                    </button>
+                    <button
+                        onClick={handlePrint}
+                        className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center shadow-md transition-all transform hover:-translate-y-0.5 gap-2"
+                        title="Imprimir"
+                    >
+                        <Printer size={18} />
+                        <span className="text-sm">Imprimir</span>
+                    </button>
 
-            {/* Quick Share Banner Card */}
-            <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-slate-900 rounded-3xl p-6 text-white shadow-xl relative overflow-hidden border border-purple-800/40">
-                <div className="absolute right-0 top-0 translate-x-8 -translate-y-8 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                    {/* Vertical Divider */}
+                    <div className="hidden md:block h-8 w-[1px] bg-gray-300 dark:bg-gray-600 mx-1"></div>
 
-                <div className="relative z-10 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                    <div className="space-y-2 max-w-2xl">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-400/30">
-                            <Sparkles size={13} /> Enlace Público Universal
-                        </span>
-                        <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-                            Dinámica Interactiva: Explorando Valores
-                        </h2>
-                        <p className="text-xs sm:text-sm text-purple-200/80 leading-relaxed">
-                            Envía este link por WhatsApp o correo a cualquier persona. Al abrirlo, ingresará sus datos básicos (nombre, apellidos y celular) y podrá realizar la dinámica de inmediato.
-                        </p>
+                    {/* Action buttons: WhatsApp & Copiar Link */}
+                    <button
+                        onClick={() => setShowWhatsAppModal(true)}
+                        className="inline-flex items-center px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none transition-all transform hover:-translate-y-0.5 active:scale-95 gap-2 cursor-pointer"
+                        title="Compartir por WhatsApp"
+                    >
+                        <MessageCircle size={18} />
+                        <span>WhatsApp</span>
+                    </button>
 
-                        <div className="flex items-center gap-2 pt-2">
-                            <div className="flex-1 bg-slate-950/70 border border-purple-500/30 rounded-xl px-3.5 py-2.5 text-xs text-purple-100 font-mono select-all truncate">
-                                {publicUrl}
-                            </div>
-                            <button
-                                onClick={handleCopyLink}
-                                className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-purple-600/30 transform hover:-translate-y-0.5 active:scale-95 shrink-0 cursor-pointer"
-                            >
-                                <Copy size={15} />
-                                {copied ? '¡Copiado!' : 'Copiar Enlace'}
-                            </button>
-                            <button
-                                onClick={handleShareWhatsApp}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/30 transform hover:-translate-y-0.5 active:scale-95 shrink-0 cursor-pointer"
-                            >
-                                <MessageCircle size={15} />
-                                Enviar por WhatsApp
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Stats counters */}
-                    <div className="grid grid-cols-3 gap-3 shrink-0">
-                        <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 text-center border border-white/10">
-                            <span className="block text-2xl font-black text-white">{statsTotal}</span>
-                            <span className="text-[11px] text-purple-200/70 uppercase tracking-wider font-semibold">Total Invitados</span>
-                        </div>
-                        <div className="bg-emerald-500/20 backdrop-blur-md rounded-2xl p-4 text-center border border-emerald-400/20">
-                            <span className="block text-2xl font-black text-emerald-400">{statsCompletados}</span>
-                            <span className="text-[11px] text-emerald-200/80 uppercase tracking-wider font-semibold">Completados</span>
-                        </div>
-                        <div className="bg-amber-500/20 backdrop-blur-md rounded-2xl p-4 text-center border border-amber-400/20">
-                            <span className="block text-2xl font-black text-amber-400">{statsEnviados}</span>
-                            <span className="text-[11px] text-amber-200/80 uppercase tracking-wider font-semibold">En Proceso</span>
-                        </div>
-                    </div>
+                    <button
+                        onClick={handleCopyLink}
+                        className="inline-flex items-center px-4 py-2.5 bg-[#3498db] hover:bg-blue-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 dark:shadow-none transition-all transform hover:-translate-y-0.5 active:scale-95 gap-2 cursor-pointer"
+                        title="Copiar Enlace Público"
+                    >
+                        <Copy size={18} />
+                        <span>{copied ? '¡Copiado!' : 'Copiar Link'}</span>
+                    </button>
                 </div>
             </div>
 
-            {/* Filter and Search Bar */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-slate-700/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div className="relative flex-1 max-w-md">
-                    <Search size={16} className="absolute left-3.5 top-3 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Buscar por participante o celular..."
-                        value={searchTerm}
-                        onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        className="w-full bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-purple-500 transition-all"
-                    />
+            {/* Search Bar - Exactly styled like PacienteList */}
+            <div className="mb-6 flex flex-wrap gap-4 items-center justify-between bg-white dark:bg-gray-800 p-4 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 no-print">
+                <div className="flex gap-2 w-full md:max-w-md">
+                    <div className="relative flex-grow">
+                        <input
+                            type="text"
+                            placeholder="Buscar por nombre, apellidos o celular..."
+                            value={searchInput}
+                            onChange={(e) => setSearchInput(e.target.value)}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 text-gray-800 dark:text-white bg-white dark:bg-gray-700 placeholder-gray-400 dark:placeholder-gray-300"
+                        />
+                        <svg className="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                    {searchInput && (
+                        <button
+                            onClick={handleClearSearch}
+                            className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                        >
+                            Limpiar
+                        </button>
+                    )}
                 </div>
 
+                {/* Filter buttons */}
                 <div className="flex items-center gap-2">
-                    <Filter size={15} className="text-gray-400" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">Estado:</span>
                     <button
                         onClick={() => { setStatusFilter('all'); setCurrentPage(1); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                             statusFilter === 'all'
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                                ? 'bg-purple-600 text-white shadow-sm'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                     >
                         Todos ({tests.length})
@@ -419,191 +605,183 @@ const TestsInvitadosList: React.FC = () => {
                         onClick={() => { setStatusFilter('completado'); setCurrentPage(1); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                             statusFilter === 'completado'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                                ? 'bg-green-600 text-white shadow-sm'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                     >
-                        Completados ({statsCompletados})
+                        Completados ({tests.filter(t => t.estado === 'completado').length})
                     </button>
                     <button
                         onClick={() => { setStatusFilter('enviado'); setCurrentPage(1); }}
                         className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                             statusFilter === 'enviado'
-                                ? 'bg-amber-600 text-white'
-                                : 'bg-gray-100 dark:bg-slate-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                                ? 'bg-amber-600 text-white shadow-sm'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                         }`}
                     >
-                        En Proceso ({statsEnviados})
+                        En Proceso ({tests.filter(t => t.estado === 'enviado').length})
                     </button>
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-100 dark:border-slate-700/60 overflow-hidden">
-                {loading ? (
-                    <div className="p-12 text-center">
-                        <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent"></div>
-                        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Cargando tests de participantes...</p>
-                    </div>
-                ) : filteredTests.length === 0 ? (
-                    <div className="p-12 text-center space-y-3">
-                        <div className="w-14 h-14 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 flex items-center justify-center mx-auto">
-                            <Sparkles size={26} />
-                        </div>
-                        <h3 className="text-base font-bold text-gray-900 dark:text-white">No hay tests de invitados registrados</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                            Comparte el enlace público para que los participantes no registrados comiencen la dinámica y sus resultados aparecerán aquí.
-                        </p>
-                        <button
-                            onClick={handleCopyLink}
-                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-xl text-xs inline-flex items-center gap-1.5 transition-all shadow-md shadow-purple-600/20"
-                        >
-                            <Copy size={14} /> Copiar Enlace Público
-                        </button>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="border-b border-gray-200 dark:border-slate-700 bg-gray-50/75 dark:bg-slate-900/50 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                    <th className="px-4 py-3.5">Participante Invitado</th>
-                                    <th className="px-4 py-3.5">Dinámica</th>
-                                    <th className="px-4 py-3.5">Fecha Inicio</th>
-                                    <th className="px-4 py-3.5">Estado</th>
-                                    <th className="px-4 py-3.5">Fecha Completado</th>
-                                    <th className="px-4 py-3.5">Resultado</th>
-                                    <th className="px-4 py-3.5 text-right">Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100 dark:divide-slate-700/50">
-                                {paginatedTests.map((test) => {
-                                    const isCompletado = test.estado === 'completado';
-                                    const participantFullName = `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''} ${test.invitadoMaterno || ''}`.trim() || 'Invitado sin nombre';
-
-                                    return (
-                                        <tr 
-                                            key={test.id}
-                                            className="hover:bg-purple-50/30 dark:hover:bg-purple-950/20 transition-colors"
-                                        >
-                                            <td className="px-4 py-3.5">
-                                                <div className="font-bold text-gray-900 dark:text-white text-sm">
-                                                    {participantFullName}
-                                                </div>
-                                                {test.invitadoCelular && (
-                                                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                                                        <a 
-                                                            href={`https://wa.me/${test.invitadoCelular.replace(/\D/g, '')}`}
-                                                            target="_blank"
-                                                            rel="noreferrer"
-                                                            className="text-emerald-600 hover:text-emerald-700 flex items-center gap-1 font-semibold"
-                                                            title="Contactar por WhatsApp"
-                                                        >
-                                                            <MessageCircle size={13} />
-                                                            {test.invitadoCelular}
-                                                        </a>
-                                                    </div>
-                                                )}
-                                                {test.paciente && (
-                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-600 dark:text-blue-400 mt-1">
-                                                        <UserCheck size={11} /> Vinculado a: {test.paciente.nombre} {test.paciente.paterno}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3.5">
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                                                    <Sparkles size={12} /> {test.nombreTest}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3.5 text-xs text-gray-600 dark:text-gray-300">
-                                                {formatDateTime(test.fechaEnvio)}
-                                            </td>
-                                            <td className="px-4 py-3.5">
-                                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                                                    isCompletado
-                                                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                                        : 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-                                                }`}>
-                                                    {isCompletado ? 'Completado' : 'En Proceso'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-3.5 text-xs text-gray-600 dark:text-gray-300">
-                                                {test.fechaCompletado 
-                                                    ? formatDateTime(test.fechaCompletado)
-                                                    : <span className="text-gray-400 dark:text-gray-500">—</span>
-                                                }
-                                            </td>
-                                            <td className="px-4 py-3.5 text-xs">
-                                                {isCompletado ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                                        <CheckCircle2 size={12} className="text-emerald-500" /> Top 3 Definido
-                                                    </span>
-                                                ) : (
-                                                    <span className="text-gray-400 dark:text-gray-500">—</span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3.5 text-right">
-                                                <div className="flex items-center justify-end gap-1.5">
-                                                    {isCompletado && (
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedTest(test);
-                                                                setIsResultadosModalOpen(true);
-                                                            }}
-                                                            className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-xs flex items-center gap-1 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm cursor-pointer"
-                                                            title="Ver Resultados"
-                                                        >
-                                                            <Eye size={13} /> Ver Resultados
-                                                        </button>
-                                                    )}
-
-                                                    {!test.pacienteId ? (
-                                                        <button
-                                                            onClick={() => handleOpenVincularModal(test)}
-                                                            className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-xs flex items-center gap-1 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm cursor-pointer"
-                                                            title="Vincular / Registrar como Paciente"
-                                                        >
-                                                            <UserPlus size={13} /> Vincular a Paciente
-                                                        </button>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => navigate(`/pacientes/${test.pacienteId}/test`)}
-                                                            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-2.5 rounded-lg text-xs flex items-center gap-1 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm cursor-pointer"
-                                                            title="Ver Ficha del Paciente"
-                                                        >
-                                                            <ExternalLink size={13} /> Ver Ficha
-                                                        </button>
-                                                    )}
-
-                                                    {!isCompletado && (
-                                                        <button
-                                                            onClick={() => handleDeleteTest(test)}
-                                                            className="bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400 p-1.5 rounded-lg text-xs transition-all cursor-pointer"
-                                                            title="Eliminar"
-                                                        >
-                                                            <Trash2 size={14} />
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                    <div className="p-4 border-t border-gray-100 dark:border-slate-700">
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={setCurrentPage}
-                        />
-                    </div>
-                )}
+            {/* Record Counter - Exactly like PacienteList */}
+            <div className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+                Mostrando {totalRecords === 0 ? 0 : (currentPage - 1) * limit + 1} - {Math.min(currentPage * limit, totalRecords)} de {totalRecords} registros
             </div>
+
+            {/* Table - Exactly like PacienteList */}
+            <div className="overflow-x-auto rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 transition-colors">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-gray-50 dark:bg-gray-700">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">#</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Participante Invitado</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dinámica / Test</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Celular</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha Inicio</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fecha Completado</th>
+                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Estado</th>
+                            <th className="no-print px-6 py-3 text-left text-xs font-semibold text-gray-500 dark:text-gray-300 uppercase tracking-wider">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                        {loading ? (
+                            <tr>
+                                <td colSpan={8} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent"></div>
+                                    <p className="mt-2 text-sm">Cargando tests de participantes...</p>
+                                </td>
+                            </tr>
+                        ) : paginatedTests.length === 0 ? (
+                            <tr>
+                                <td colSpan={8} className="p-8 text-center text-gray-500 dark:text-gray-400">
+                                    No se encontraron registros de tests de invitados.
+                                </td>
+                            </tr>
+                        ) : (
+                            paginatedTests.map((test, index) => {
+                                const isCompletado = test.estado === 'completado';
+                                const fullName = `${test.invitadoNombre || ''} ${test.invitadoPaterno || ''} ${test.invitadoMaterno || ''}`.trim() || 'Invitado sin nombre';
+
+                                return (
+                                    <tr key={test.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                                        <td className="p-3 text-gray-800 dark:text-gray-300">{(currentPage - 1) * limit + index + 1}</td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300">
+                                            <div className="flex flex-col">
+                                                <span className="font-bold text-gray-900 dark:text-white">
+                                                    {fullName}
+                                                </span>
+                                                {test.paciente && (
+                                                    <span 
+                                                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                                                        onClick={() => navigate(`/pacientes/${test.pacienteId}/test`)}
+                                                    >
+                                                        <CheckCircle size={12} className="text-emerald-500" />
+                                                        Vinculado a: {test.paciente.nombre} {test.paciente.paterno}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300">
+                                            <span className="font-medium text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 px-2.5 py-1 rounded-full">
+                                                {test.nombreTest}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300">
+                                            {test.invitadoCelular ? (
+                                                <a 
+                                                    href={`https://wa.me/${test.invitadoCelular.replace(/\D/g, '')}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 font-semibold text-xs flex items-center gap-1"
+                                                    title="Abrir WhatsApp"
+                                                >
+                                                    <MessageCircle size={14} />
+                                                    {formatCelular(test.invitadoCelular)}
+                                                </a>
+                                            ) : '-'}
+                                        </td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300 text-xs">
+                                            {formatDateTime(test.fechaEnvio)}
+                                        </td>
+                                        <td className="p-3 text-gray-800 dark:text-gray-300 text-xs">
+                                            {test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}
+                                        </td>
+                                        <td className="p-3">
+                                            <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${
+                                                isCompletado
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300'
+                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300'
+                                            }`}>
+                                                {isCompletado ? 'Completado' : 'En Proceso'}
+                                            </span>
+                                        </td>
+                                        <td className="no-print p-3 flex gap-2">
+                                            {isCompletado && (
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTest(test);
+                                                        setIsResultadosModalOpen(true);
+                                                    }}
+                                                    className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                    title="Ver Resultados"
+                                                >
+                                                    <Eye size={18} />
+                                                </button>
+                                            )}
+
+                                            {!test.pacienteId ? (
+                                                <button
+                                                    onClick={() => handleOpenVincularModal(test)}
+                                                    className="p-2 bg-[#3498db] hover:bg-blue-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                    title="Vincular / Registrar como Paciente"
+                                                >
+                                                    <UserPlus size={18} />
+                                                </button>
+                                            ) : (
+                                                <button
+                                                    onClick={() => navigate(`/pacientes/${test.pacienteId}/test`)}
+                                                    className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                    title="Ver Ficha del Paciente"
+                                                >
+                                                    <ExternalLink size={18} />
+                                                </button>
+                                            )}
+
+                                            <button
+                                                onClick={() => handleDelete(test.id)}
+                                                className="p-2 bg-red-500 hover:bg-red-600 text-white rounded-lg shadow-md transition-all transform hover:-translate-y-0.5"
+                                                title="Eliminar Registro"
+                                            >
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        )}
+                    </tbody>
+                </table>
+            </div>
+
+            {/* Pagination - Exactly like PacienteList */}
+            {totalPages > 1 && (
+                <div className="mt-4">
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onPageChange={setCurrentPage}
+                    />
+                </div>
+            )}
+
+            {/* Manual Modal */}
+            <ManualModal
+                isOpen={showManual}
+                onClose={() => setShowManual(false)}
+                title="Manual de Tests de Invitados"
+                sections={manualSections}
+            />
 
             {/* Results Modal */}
             {isResultadosModalOpen && selectedTest && (
@@ -618,14 +796,90 @@ const TestsInvitadosList: React.FC = () => {
                 />
             )}
 
+            {/* WhatsApp Share Modal with Country Code (Item 3) */}
+            {showWhatsAppModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-150 dark:border-gray-700">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2.5">
+                                <div className="p-2 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                                    <MessageCircle size={22} />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                                    Compartir por WhatsApp
+                                </h3>
+                            </div>
+                            <button
+                                onClick={() => setShowWhatsAppModal(false)}
+                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                            Número de WhatsApp del invitado para enviarle la dinámica:
+                        </p>
+
+                        <form onSubmit={handleSendWhatsApp} className="space-y-4">
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 mb-1">
+                                    Celular con Código de País
+                                </label>
+                                <div className="flex gap-2">
+                                    <select
+                                        value={wsCountryCode}
+                                        onChange={(e) => setWsCountryCode(e.target.value)}
+                                        className="py-2 px-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-none focus:ring-2 focus:ring-blue-500 transition-all font-sans text-sm cursor-pointer"
+                                    >
+                                        {countryCodes.map(c => (
+                                            <option key={c.code} value={c.code}>{c.label}</option>
+                                        ))}
+                                    </select>
+                                    <div className="relative flex-1">
+                                        <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                        <input
+                                            type="tel"
+                                            required
+                                            value={wsLocalPhone}
+                                            onChange={(e) => setWsLocalPhone(e.target.value)}
+                                            placeholder="Ej: 70012345"
+                                            className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                            autoFocus
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowWhatsAppModal(false)}
+                                    className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-xl text-sm shadow-md transition-all flex items-center gap-1.5 transform hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+                                >
+                                    <MessageCircle size={16} />
+                                    Abrir WhatsApp
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
             {/* Vincular / Registrar Paciente Modal */}
             {isVincularModalOpen && testToLink && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-150 dark:border-slate-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-lg w-full border border-gray-150 dark:border-gray-700 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
                         {/* Header */}
-                        <div className="p-5 border-b border-gray-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-purple-500/10 to-indigo-500/10">
+                        <div className="p-5 border-b border-gray-150 dark:border-gray-700 flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-xl bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400">
+                                <div className="p-2.5 rounded-xl bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
                                     <UserPlus size={20} />
                                 </div>
                                 <div>
@@ -633,7 +887,7 @@ const TestsInvitadosList: React.FC = () => {
                                         Vincular Test a Paciente
                                     </h3>
                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        Participante: <strong className="text-purple-600 dark:text-purple-400">{testToLink.invitadoNombre} {testToLink.invitadoPaterno}</strong>
+                                        Participante: <strong className="text-blue-600 dark:text-blue-400">{testToLink.invitadoNombre} {testToLink.invitadoPaterno}</strong>
                                     </p>
                                 </div>
                             </div>
@@ -646,14 +900,14 @@ const TestsInvitadosList: React.FC = () => {
                         </div>
 
                         {/* Mode Switcher */}
-                        <div className="p-4 bg-gray-50 dark:bg-slate-800/50 border-b border-gray-100 dark:border-slate-800 flex gap-2">
+                        <div className="p-4 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-150 dark:border-gray-700 flex gap-2">
                             <button
                                 type="button"
                                 onClick={() => setVincularMode('nuevo')}
                                 className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                                     vincularMode === 'nuevo'
-                                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                                        : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700'
+                                        ? 'bg-[#3498db] text-white shadow-md'
+                                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
                                 }`}
                             >
                                 <UserPlus size={14} /> Registrar como Nuevo Paciente
@@ -663,8 +917,8 @@ const TestsInvitadosList: React.FC = () => {
                                 onClick={() => setVincularMode('existente')}
                                 className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                                     vincularMode === 'existente'
-                                        ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
-                                        : 'bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-slate-700'
+                                        ? 'bg-[#3498db] text-white shadow-md'
+                                        : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
                                 }`}
                             >
                                 <Link2 size={14} /> Asociar a Paciente Existente
@@ -675,7 +929,7 @@ const TestsInvitadosList: React.FC = () => {
                         <div className="p-6 overflow-y-auto space-y-4">
                             {vincularMode === 'nuevo' ? (
                                 <div className="space-y-3.5">
-                                    <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-xl border border-purple-200 dark:border-purple-800/40 text-xs text-purple-700 dark:text-purple-300 leading-relaxed">
+                                    <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-xl border border-blue-200 dark:border-blue-800/40 text-xs text-blue-700 dark:text-blue-300 leading-relaxed">
                                         💡 Se registrará formalmente como nuevo paciente en el sistema y este test se trasladará de inmediato a su ficha clínica e historial de tests.
                                     </div>
 
@@ -687,7 +941,7 @@ const TestsInvitadosList: React.FC = () => {
                                             type="text"
                                             value={newPatientForm.nombre}
                                             onChange={(e) => setNewPatientForm({ ...newPatientForm, nombre: e.target.value })}
-                                            className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
+                                            className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
                                             required
                                         />
                                     </div>
@@ -701,7 +955,7 @@ const TestsInvitadosList: React.FC = () => {
                                                 type="text"
                                                 value={newPatientForm.paterno}
                                                 onChange={(e) => setNewPatientForm({ ...newPatientForm, paterno: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
+                                                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
                                                 required
                                             />
                                         </div>
@@ -713,35 +967,50 @@ const TestsInvitadosList: React.FC = () => {
                                                 type="text"
                                                 value={newPatientForm.materno}
                                                 onChange={(e) => setNewPatientForm({ ...newPatientForm, materno: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
+                                                className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
                                             />
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                                Teléfono Celular
-                                            </label>
-                                            <input
-                                                type="tel"
-                                                value={newPatientForm.telefono_celular}
-                                                onChange={(e) => setNewPatientForm({ ...newPatientForm, telefono_celular: e.target.value })}
-                                                className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
-                                            />
+                                    {/* Celular with Country Code */}
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                            Teléfono Celular
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <select
+                                                value={newPatientForm.countryCode}
+                                                onChange={(e) => setNewPatientForm({ ...newPatientForm, countryCode: e.target.value })}
+                                                className="py-2 px-2 border border-gray-300 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 outline-none text-sm cursor-pointer"
+                                            >
+                                                {countryCodes.map(c => (
+                                                    <option key={c.code} value={c.code}>{c.label}</option>
+                                                ))}
+                                            </select>
+                                            <div className="relative flex-1">
+                                                <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                <input
+                                                    type="tel"
+                                                    value={newPatientForm.telefono_celular}
+                                                    onChange={(e) => setNewPatientForm({ ...newPatientForm, telefono_celular: e.target.value })}
+                                                    placeholder="Ej: 70012345"
+                                                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white outline-none text-sm"
+                                                />
+                                            </div>
                                         </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
-                                                DNI (Opcional)
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={newPatientForm.dni}
-                                                onChange={(e) => setNewPatientForm({ ...newPatientForm, dni: e.target.value })}
-                                                placeholder="Ej. 74839201"
-                                                className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
-                                            />
-                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1">
+                                            DNI (Opcional)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={newPatientForm.dni}
+                                            onChange={(e) => setNewPatientForm({ ...newPatientForm, dni: e.target.value })}
+                                            placeholder="Ej. 74839201"
+                                            className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white"
+                                        />
                                     </div>
                                 </div>
                             ) : (
@@ -759,10 +1028,10 @@ const TestsInvitadosList: React.FC = () => {
                                             placeholder="Buscar por nombre o DNI..."
                                             value={patientSearchTerm}
                                             onChange={(e) => setPatientSearchTerm(e.target.value)}
-                                            className="w-full bg-gray-50 dark:bg-slate-950 border border-gray-200 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white mb-2"
+                                            className="w-full bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm text-gray-900 dark:text-white mb-2 outline-none"
                                         />
 
-                                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-slate-700 rounded-xl divide-y divide-gray-100 dark:divide-slate-800 bg-white dark:bg-slate-950">
+                                        <div className="max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800">
                                             {filteredExistingPatients.length === 0 ? (
                                                 <div className="p-3 text-center text-xs text-gray-400">
                                                     No se encontraron pacientes que coincidan.
@@ -774,8 +1043,8 @@ const TestsInvitadosList: React.FC = () => {
                                                         onClick={() => setSelectedPacienteId(p.id)}
                                                         className={`p-2.5 text-xs flex items-center justify-between cursor-pointer transition-colors ${
                                                             selectedPacienteId === p.id
-                                                                ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 font-bold'
-                                                                : 'hover:bg-gray-50 dark:hover:bg-slate-900 text-gray-700 dark:text-gray-300'
+                                                                ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-900 dark:text-blue-200 font-bold'
+                                                                : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                                                         }`}
                                                     >
                                                         <div>
@@ -783,7 +1052,7 @@ const TestsInvitadosList: React.FC = () => {
                                                             <div className="text-[10px] text-gray-400">DNI: {p.dni || 'S/D'} • Cel: {p.telefono_celular || 'S/C'}</div>
                                                         </div>
                                                         {selectedPacienteId === p.id && (
-                                                            <CheckCircle2 size={16} className="text-purple-600" />
+                                                            <CheckCircle size={16} className="text-blue-600" />
                                                         )}
                                                     </div>
                                                 ))
@@ -795,11 +1064,11 @@ const TestsInvitadosList: React.FC = () => {
                         </div>
 
                         {/* Footer */}
-                        <div className="p-4 border-t border-gray-100 dark:border-slate-800 bg-gray-50 dark:bg-slate-900/50 flex items-center justify-end gap-2">
+                        <div className="p-4 border-t border-gray-150 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center justify-end gap-2">
                             <button
                                 type="button"
                                 onClick={() => setIsVincularModalOpen(false)}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all cursor-pointer"
                             >
                                 Cancelar
                             </button>
@@ -807,7 +1076,7 @@ const TestsInvitadosList: React.FC = () => {
                                 type="button"
                                 onClick={handleConfirmVincular}
                                 disabled={linking}
-                                className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md shadow-purple-600/30 flex items-center gap-1.5 transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 cursor-pointer"
+                                className="bg-[#3498db] hover:bg-blue-600 text-white font-bold py-2 px-5 rounded-xl text-xs shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 disabled:opacity-50 cursor-pointer"
                             >
                                 {linking ? 'Vinculando...' : vincularMode === 'nuevo' ? 'Registrar y Vincular Paciente' : 'Vincular a Paciente Seleccionado'}
                             </button>
