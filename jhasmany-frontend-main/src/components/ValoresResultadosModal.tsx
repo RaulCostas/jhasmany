@@ -1,6 +1,7 @@
 import React from 'react';
 import { VALORES_CARDS, type ValorCard } from '../data/valoresCards';
 import { Award, Printer, X, Sparkles, HelpCircle, Layers, CheckCircle2 } from 'lucide-react';
+import { formatDateTime } from '../utils/dateUtils';
 
 interface ValoresResultadosModalProps {
     isOpen: boolean;
@@ -67,7 +68,7 @@ const ValoresResultadosModal: React.FC<ValoresResultadosModalProps> = ({
                 
                 <div class="meta-grid">
                     <div><strong>Paciente:</strong> ${pacienteName || 'Paciente'}</div>
-                    <div><strong>Fecha Completado:</strong> ${test.fechaCompletado ? new Date(test.fechaCompletado).toLocaleString('es-ES') : '-'}</div>
+                    <div><strong>Fecha Completado:</strong> ${test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}</div>
                     <div><strong>Profesional Solicitante:</strong> Dr. ${test.doctor ? `${test.doctor.nombre} ${test.doctor.paterno}` : 'Tratante'}</div>
                     <div><strong>Resultado Principal:</strong> ${test.resultado || '-'}</div>
                 </div>
@@ -147,7 +148,7 @@ const ValoresResultadosModal: React.FC<ValoresResultadosModalProps> = ({
                             </h3>
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                            Paciente: <strong className="text-purple-600 dark:text-purple-400">{pacienteName}</strong> • Completado el {test.fechaCompletado ? new Date(test.fechaCompletado).toLocaleString('es-ES') : '-'}
+                            Paciente: <strong className="text-purple-600 dark:text-purple-400">{pacienteName}</strong> • Completado el {test.fechaCompletado ? formatDateTime(test.fechaCompletado) : '-'}
                         </p>
                     </div>
 

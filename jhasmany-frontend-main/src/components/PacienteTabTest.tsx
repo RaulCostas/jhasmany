@@ -10,6 +10,7 @@ import Swal from 'sweetalert2';
 import ManualModal, { type ManualSection } from './ManualModal';
 import Pagination from './Pagination';
 import ValoresResultadosModal from './ValoresResultadosModal';
+import { formatDateTime } from '../utils/dateUtils';
 
 interface PacienteTest {
     id: number;
@@ -407,10 +408,7 @@ const PacienteTabTest: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-4 py-3 text-sm">
-                                                {new Date(test.fechaEnvio).toLocaleString('es-ES', {
-                                                    day: '2-digit', month: '2-digit', year: 'numeric',
-                                                    hour: '2-digit', minute: '2-digit'
-                                                })}
+                                                {formatDateTime(test.fechaEnvio)}
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -425,10 +423,7 @@ const PacienteTabTest: React.FC = () => {
                                             </td>
                                             <td className="px-4 py-3 text-sm">
                                                 {test.fechaCompletado 
-                                                    ? new Date(test.fechaCompletado).toLocaleString('es-ES', {
-                                                        day: '2-digit', month: '2-digit', year: 'numeric',
-                                                        hour: '2-digit', minute: '2-digit'
-                                                      })
+                                                    ? formatDateTime(test.fechaCompletado)
                                                     : <span className="text-gray-400 dark:text-gray-500">—</span>
                                                 }
                                             </td>
@@ -667,13 +662,13 @@ const PacienteTabTest: React.FC = () => {
                             <div>
                                 <span className="text-gray-450 block">Fecha Envío</span>
                                 <strong className="text-gray-700 dark:text-gray-300 font-semibold mt-0.5 block">
-                                    {new Date(selectedTest.fechaEnvio).toLocaleString('es-ES')}
+                                    {formatDateTime(selectedTest.fechaEnvio)}
                                 </strong>
                             </div>
                             <div>
                                 <span className="text-gray-450 block">Fecha Completado</span>
                                 <strong className="text-gray-700 dark:text-gray-300 font-semibold mt-0.5 block">
-                                    {selectedTest.fechaCompletado ? new Date(selectedTest.fechaCompletado).toLocaleString('es-ES') : '—'}
+                                    {selectedTest.fechaCompletado ? formatDateTime(selectedTest.fechaCompletado) : '—'}
                                 </strong>
                             </div>
                         </div>

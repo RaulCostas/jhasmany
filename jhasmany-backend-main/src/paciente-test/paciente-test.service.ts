@@ -35,6 +35,7 @@ export class PacienteTestService {
             nombreTest,
             token,
             estado: 'enviado',
+            fechaEnvio: new Date(),
         });
 
         return this.testRepository.save(test);
