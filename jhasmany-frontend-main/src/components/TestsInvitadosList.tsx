@@ -11,7 +11,7 @@ import Swal from 'sweetalert2';
 import { 
     FileText, Download, Printer, Users, CheckCircle, 
     Sparkles, Copy, MessageCircle, Eye, UserPlus, 
-    Trash2, X, Phone, ExternalLink, Link2, Search
+    Trash2, X, Phone, ExternalLink, Link2, Search, Send
 } from 'lucide-react';
 import ValoresResultadosModal from './ValoresResultadosModal';
 
@@ -89,6 +89,7 @@ const TestsInvitadosList: React.FC = () => {
     const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
     const [wsCountryCode, setWsCountryCode] = useState('+51');
     const [wsLocalPhone, setWsLocalPhone] = useState('');
+    const [sendingViaChatbot, setSendingViaChatbot] = useState(false);
 
     // Vincular Modal
     const [isVincularModalOpen, setIsVincularModalOpen] = useState(false);
@@ -190,28 +191,91 @@ const TestsInvitadosList: React.FC = () => {
         });
     };
 
-    const handleSendWhatsApp = (e: React.FormEvent) => {
+    const handleSendWhatsApp = async (e: React.FormEvent) => {
         e.preventDefault();
-        const cleanNumber = wsLocalPhone.replace(/\D/g, '');
+        let cleanNumber = wsLocalPhone.replace(/\D/g, '');
+        let cleanCode = wsCountryCode.replace(/\D/g, '');
+
         if (!cleanNumber || cleanNumber.length < 6) {
             Swal.fire({
                 icon: 'warning',
                 title: 'Número Inválido',
                 text: 'Por favor ingrese un número de celular válido.',
-                confirmButtonColor: '#7c3aed'
+                confirmButtonColor: '#3498db'
             });
             return;
         }
 
-        const cleanCode = wsCountryCode.replace(/\D/g, '');
-        const fullPhone = `${cleanCode}${cleanNumber}`;
-        const message = encodeURIComponent(
-            `Hola, te invito a realizar la dinámica terapéutica interactiva *Explorando Valores*.\n\nPuedes ingresar desde tu celular o computadora en este enlace:\n🔗 ${publicUrl}\n\n¡Esperamos que disfrutes la experiencia!`
-        );
+        // Avoid duplicating country code if user typed it in local phone
+        if (cleanNumber.startsWith(cleanCode) && cleanNumber.length > cleanCode.length + 5) {
+            cleanNumber = cleanNumber.slice(cleanCode.length);
+        }
 
-        window.open(`https://wa.me/${fullPhone}?text=${message}`, '_blank');
-        setShowWhatsAppModal(false);
-        setWsLocalPhone('');
+        const fullPhone = `${cleanCode}${cleanNumber}`;
+        const jid = `${fullPhone}@s.whatsapp.net`;
+        const rawMessage = `Hola, te invito a realizar la dinámica terapéutica interactiva *Explorando Valores*.\n\nPuedes ingresar desde tu celular o computadora en el siguiente enlace:\n🔗 ${publicUrl}\n\n¡Esperamos que disfrutes la experiencia!`;
+
+        setSendingViaChatbot(true);
+        try {
+            Swal.fire({
+                title: 'Enviando invitación...',
+                text: 'Enviando enlace a través del Chatbot de WhatsApp...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            await api.post('/chatbot/send', {
+                jid,
+                text: rawMessage
+            });
+
+            setShowWhatsAppModal(false);
+            setWsLocalPhone('');
+
+            Swal.fire({
+                icon: 'success',
+                title: '¡Enviado con Éxito!',
+                text: `El enlace de la dinámica ha sido enviado a +${fullPhone} mediante el Chatbot.`,
+                confirmButtonColor: '#3498db',
+                timer: 3000
+            });
+        } catch (error: any) {
+            console.error('Error sending via chatbot:', error);
+            const errMsg = error.response?.data?.message || error.message || 'No se pudo enviar el mensaje por Chatbot.';
+            
+            const isDisconnected = errMsg.toLowerCase().includes('no está conectado') || errMsg.toLowerCase().includes('desconectado');
+
+            if (isDisconnected) {
+                const res = await Swal.fire({
+                    icon: 'warning',
+                    title: 'Chatbot Desconectado',
+                    text: 'El Chatbot no está conectado a WhatsApp en este momento. ¿Deseas abrir WhatsApp Web para enviarlo manualmente?',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sí, abrir WhatsApp Web',
+                    cancelButtonText: 'Cerrar',
+                    confirmButtonColor: '#10b981',
+                    cancelButtonColor: '#6b7280'
+                });
+
+                if (res.isConfirmed) {
+                    const encodedMsg = encodeURIComponent(rawMessage);
+                    window.open(`https://wa.me/${fullPhone}?text=${encodedMsg}`, '_blank');
+                    setShowWhatsAppModal(false);
+                    setWsLocalPhone('');
+                }
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al enviar por Chatbot',
+                    text: errMsg,
+                    confirmButtonColor: '#dc3545'
+                });
+            }
+        } finally {
+            setSendingViaChatbot(false);
+        }
     };
 
     const formatCelular = (celular: string | null | undefined) => {
@@ -810,10 +874,12 @@ const TestsInvitadosList: React.FC = () => {
                                 </h3>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setShowWhatsAppModal(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                                className="bg-gray-100 hover:bg-red-500 text-gray-500 hover:text-white dark:bg-gray-700 dark:hover:bg-red-600 dark:text-gray-300 p-2 rounded-xl transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm flex items-center justify-center cursor-pointer border border-gray-200 dark:border-gray-600"
+                                title="Cerrar modal"
                             >
-                                <X size={20} />
+                                <X size={18} />
                             </button>
                         </div>
 
@@ -851,20 +917,31 @@ const TestsInvitadosList: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-2">
+                            <div className="flex justify-end gap-2.5 pt-3 border-t border-gray-100 dark:border-gray-700/60 mt-2">
                                 <button
                                     type="button"
                                     onClick={() => setShowWhatsAppModal(false)}
-                                    className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                    className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-1.5 cursor-pointer text-sm"
                                 >
-                                    Cancelar
+                                    <X size={16} />
+                                    Cerrar
                                 </button>
                                 <button
                                     type="submit"
-                                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-5 rounded-xl text-sm shadow-md transition-all flex items-center gap-1.5 transform hover:-translate-y-0.5 active:scale-95 cursor-pointer"
+                                    disabled={sendingViaChatbot}
+                                    className="bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold py-2 px-5 rounded-xl text-sm shadow-md transition-all flex items-center gap-2 transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
                                 >
-                                    <MessageCircle size={16} />
-                                    Abrir WhatsApp
+                                    {sendingViaChatbot ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                            Enviando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Send size={16} />
+                                            Enviar por Chatbot
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </form>
@@ -892,10 +969,12 @@ const TestsInvitadosList: React.FC = () => {
                                 </div>
                             </div>
                             <button
+                                type="button"
                                 onClick={() => setIsVincularModalOpen(false)}
-                                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg"
+                                className="bg-gray-100 hover:bg-red-500 text-gray-500 hover:text-white dark:bg-gray-700 dark:hover:bg-red-600 dark:text-gray-300 p-2 rounded-xl transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-sm flex items-center justify-center cursor-pointer border border-gray-200 dark:border-gray-600"
+                                title="Cerrar modal"
                             >
-                                <X size={20} />
+                                <X size={18} />
                             </button>
                         </div>
 
@@ -1068,9 +1147,10 @@ const TestsInvitadosList: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={() => setIsVincularModalOpen(false)}
-                                className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all cursor-pointer"
+                                className="bg-gray-500 hover:bg-gray-600 text-white font-semibold py-2 px-4 rounded-xl shadow-md transition-all transform hover:-translate-y-0.5 active:scale-95 flex items-center gap-1.5 cursor-pointer text-xs"
                             >
-                                Cancelar
+                                <X size={14} />
+                                Cerrar
                             </button>
                             <button
                                 type="button"
