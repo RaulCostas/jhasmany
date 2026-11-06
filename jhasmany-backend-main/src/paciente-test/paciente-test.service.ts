@@ -30,11 +30,22 @@ export class PacienteTestService {
             throw new NotFoundException('Paciente no encontrado');
         }
 
+        let targetDoctorId = doctorId;
+        if (!targetDoctorId) {
+            const defaultDoctor = await this.doctorRepository.findOne({
+                where: { estado: 'activo' },
+                order: { id: 'ASC' }
+            });
+            if (defaultDoctor) {
+                targetDoctorId = defaultDoctor.id;
+            }
+        }
+
         const token = crypto.randomBytes(16).toString('hex');
         
         const test = this.testRepository.create({
             pacienteId,
-            doctorId: doctorId || null,
+            doctorId: targetDoctorId || null,
             nombreTest,
             token,
             estado: 'enviado',
@@ -57,11 +68,22 @@ export class PacienteTestService {
             throw new BadRequestException('El nombre y apellido paterno son requeridos.');
         }
 
+        let targetDoctorId = dto.doctorId;
+        if (!targetDoctorId) {
+            const defaultDoctor = await this.doctorRepository.findOne({
+                where: { estado: 'activo' },
+                order: { id: 'ASC' }
+            });
+            if (defaultDoctor) {
+                targetDoctorId = defaultDoctor.id;
+            }
+        }
+
         const token = crypto.randomBytes(16).toString('hex');
 
         const test = this.testRepository.create({
             pacienteId: null,
-            doctorId: dto.doctorId || null,
+            doctorId: targetDoctorId || null,
             nombreTest: dto.nombreTest || 'Explorando Valores',
             token,
             estado: 'enviado',
@@ -234,6 +256,16 @@ export class PacienteTestService {
         test.puntaje = totalScore;
         test.resultado = interpretation;
 
+        if (!test.doctorId) {
+            const defaultDoctor = await this.doctorRepository.findOne({
+                where: { estado: 'activo' },
+                order: { id: 'ASC' }
+            });
+            if (defaultDoctor) {
+                test.doctorId = defaultDoctor.id;
+            }
+        }
+
         const savedTest = await this.testRepository.save(test);
 
         // Notify Doctor via WhatsApp if associated
@@ -308,6 +340,16 @@ export class PacienteTestService {
         test.respuestas = data;
         test.puntaje = 3;
         test.resultado = `Top 3 Valores: ${top3Formatted}`;
+
+        if (!test.doctorId) {
+            const defaultDoctor = await this.doctorRepository.findOne({
+                where: { estado: 'activo' },
+                order: { id: 'ASC' }
+            });
+            if (defaultDoctor) {
+                test.doctorId = defaultDoctor.id;
+            }
+        }
 
         const savedTest = await this.testRepository.save(test);
 
@@ -420,6 +462,15 @@ export class PacienteTestService {
         test.pacienteId = pacienteDestino.id;
         test.paciente = pacienteDestino;
         test.esInvitado = false;
+        if (!test.doctorId) {
+            const defaultDoctor = await this.doctorRepository.findOne({
+                where: { estado: 'activo' },
+                order: { id: 'ASC' }
+            });
+            if (defaultDoctor) {
+                test.doctorId = defaultDoctor.id;
+            }
+        }
         const updatedTest = await this.testRepository.save(test);
 
         return {

@@ -158,8 +158,11 @@ const PacienteTabTest: React.FC = () => {
                 }
             });
 
+            const defaultDocId = doctors.length > 0 ? doctors[0].id : undefined;
+
             const res = await api.post('/paciente-test/enviar', { 
                 pacienteId: Number(id),
+                doctorId: defaultDocId,
                 nombreTest 
             });
             Swal.close();
